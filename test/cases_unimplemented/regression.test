@@ -1,0 +1,63 @@
+Issue #104:
+
+```
+{1--}
+
+{1-}
+.
+<p>{1--}</p>
+<p>{1-}</p>
+```
+
+Issue #106:
+
+```
+
+|`|
+.
+<p>|<code>|</code></p>
+```
+
+```
+
+|`|x
+.
+<p>|<code>|x</code></p>
+```
+
+Issue #127:
+
+```
+\$$`a`
+.
+<p>$<span class="math inline">\(a\)</span></p>
+```
+
+```
+{
+ .`
+.
+<p>{
+.<code></code></p>
+```
+
+Issue #57:
+
+``` a
+| 1 | 2 |
+
+ ^ cap1
+
+ ^ cap2
+.
+doc
+  table
+    caption
+      str text="cap2"
+    row head=false
+      cell head=false align="default"
+        str text="1"
+      cell head=false align="default"
+        str text="2"
+```
+
