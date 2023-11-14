@@ -1,5 +1,4 @@
-import gleam/io
-
-pub fn main() {
-  io.println("Hello from jot!")
+// TODO: document
+pub fn to_html(djot: String) -> String {
+  djot
 }
