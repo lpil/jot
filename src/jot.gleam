@@ -61,8 +61,11 @@ fn iter_paragraph(in: Chars, acc: String) -> Events {
 }
 
 fn iter_heading(in: Chars) -> Events {
-  let #(level, in) = count_heading_hashes(in, 1)
-  yield(HeadingStart(level), iter_heading_text(in, level, ""))
+  let #(level, acc, in) = count_heading_hashes(in, "#", 1)
+  case level {
+    0 -> yield(ParagraphStart, iter_paragraph(in, acc))
+    _ -> yield(HeadingStart(level), iter_heading_text(in, level, ""))
+  }
 }
 
 fn iter_heading_text(in: Chars, level: Int, acc: String) -> Events {
@@ -76,7 +79,7 @@ fn iter_heading_text(in: Chars, level: Int, acc: String) -> Events {
         // This could be more content, or a different heading
         Next(_, _) -> {
           let in = drop_spaces(in)
-          let #(count, in) = count_heading_hashes(in, 0)
+          let #(count, _, in) = count_heading_hashes(in, "", 0)
           case count {
             // Text within same heading
             0 -> iter_heading_text(in, level, acc <> "\n")
@@ -166,13 +169,17 @@ fn drop_spaces(iter: Chars) -> Chars {
   }
 }
 
-fn count_heading_hashes(iter: Chars, count: Int) -> #(Int, Chars) {
+fn count_heading_hashes(
+  iter: Chars,
+  acc: String,
+  count: Int,
+) -> #(Int, String, Chars) {
   case iterator.step(iter) {
-    Next("#", iter2) -> count_heading_hashes(iter2, count + 1)
-    Next(" ", iter2) -> #(count, iter2)
-    Next("\n", iter2) -> #(count, iter2)
-    Next(_, _) -> #(0, iter)
-    Done -> #(count, iter)
+    Next("#", iter2) -> count_heading_hashes(iter2, acc <> "#", count + 1)
+    Next(" ", iter2) -> #(count, acc, iter2)
+    Next("\n", iter2) -> #(count, acc, iter2)
+    Next(_, _) -> #(0, acc, iter)
+    Done -> #(count, acc, iter)
   }
 }
 
@@ -181,9 +188,13 @@ fn plain_text_until(events: Events, end: Event) -> String {
   |> iterator.take_while(fn(e) { e != end })
   |> iterator.flat_map(fn(e) {
     case e {
-      Text(t) -> iterator.single(t)
+      Text(t) ->
+        t
+        |> string.replace("#", "")
+        |> iterator.single
       _ -> iterator.empty()
     }
   })
   |> iterator.fold("", fn(a, b) { a <> b })
+  |> string.trim
 }
