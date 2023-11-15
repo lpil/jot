@@ -18,7 +18,8 @@ pub fn integration_test() {
     False -> {
       io.print_error("F")
       io.print_error("\n\nTest failed: " <> test.file)
-      io.print_error("\n\nExpected:\n " <> test.html)
+      io.print_error("\n\nInput:\n" <> test.djot)
+      io.print_error("\nExpected:\n" <> test.html)
       io.print_error("\nActual:\n" <> result)
       io.print_error("\n")
       panic as "integration test failed"

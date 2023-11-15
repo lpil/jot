@@ -2,7 +2,6 @@ import simplifile
 import filepath
 import gleam/list
 import gleam/string
-import gleam/io
 
 pub type Example {
   Example(file: String, djot: String, html: String)
@@ -29,11 +28,11 @@ fn parse(
   path: String,
   examples: List(Example),
 ) -> List(Example) {
+  let lines = pop_empty(lines)
   case lines {
     [] -> list.reverse(examples)
     [delim, ..lines] -> {
       let #(example, lines) = parse_one(lines, delim, path)
-      let lines = pop_empty(lines)
       parse(lines, path, [example, ..examples])
     }
   }
@@ -64,7 +63,7 @@ fn collect_until(
 
 fn pop_empty(lines: List(String)) -> List(String) {
   case lines {
-    ["", ..lines] -> lines
+    ["", ..lines] -> pop_empty(lines)
     _ -> lines
   }
 }
