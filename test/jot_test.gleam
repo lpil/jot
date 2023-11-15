@@ -1,5 +1,6 @@
 import gleam/io
 import gleam/list
+import gleam/string
 import gleeunit
 import jot
 import jot_test/support
@@ -19,8 +20,8 @@ pub fn integration_test() {
       io.print_error("F")
       io.print_error("\n\nTest failed: " <> test.file)
       io.print_error("\n\nInput:\n" <> test.djot)
-      io.print_error("\nExpected:\n" <> test.html)
-      io.print_error("\nActual:\n" <> result)
+      io.print_error("\nExpected:\n" <> string.inspect(test.html))
+      io.print_error("\nActual:\n" <> string.inspect(result))
       io.print_error("\n")
       panic as "integration test failed"
     }
