@@ -13,3 +13,34 @@
 <h1 id="another">another</h1>
 ```
 
+```
+# Heading
+# continued
+.
+<h1 id="Heading-continued">Heading
+continued</h1>
+```
+
+```
+##
+heading
+
+para
+.
+<h2 id="heading">heading</h2>
+<p>para</p>
+```
+
+```
+##
+.
+<h2></h2>
+```
+
+```
+## Heading
+### Next level
+.
+<h2 id="Heading">Heading</h2>
+<h3 id="Next-level">Next level</h3>
+```

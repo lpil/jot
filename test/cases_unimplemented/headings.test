@@ -1,36 +1,4 @@
 ```
-##
-heading
-
-para
-.
-<section id="heading">
-<h2>heading</h2>
-<p>para</p>
-</section>
-```
-
-```
-##
-.
-<section id="s-1">
-<h2></h2>
-</section>
-```
-
-```
-## Heading
-### Next level
-.
-<section id="Heading">
-<h2>Heading</h2>
-<section id="Next-level">
-<h3>Next level</h3>
-</section>
-</section>
-```
-
-```
 # Heading
 lazy
 .
