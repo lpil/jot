@@ -15,6 +15,12 @@ pub type Container {
 
 pub type Inline {
   Text(String)
+  Link(content: List(Inline), destination: Destination)
+}
+
+pub type Destination {
+  Reference(String)
+  Url(String)
 }
 
 type Attrs =
@@ -66,8 +72,8 @@ fn parse_document(in: Chars, refs: Refs, ast: List(Container)) -> Document {
       let #(heading, refs, in) = parse_heading(rest, refs)
       parse_document(in, refs, [heading, ..ast])
     }
-    [c, ..rest] -> {
-      let #(paragraph, in) = parse_paragraph(rest, c)
+    _ -> {
+      let #(paragraph, in) = parse_paragraph(in)
       parse_document(in, refs, [paragraph, ..ast])
     }
   }
@@ -89,7 +95,7 @@ fn parse_heading(in: Chars, refs: Refs) -> #(Container, Refs, Chars) {
     }
 
     None -> {
-      let #(p, in) = parse_paragraph(["#", ..in], "")
+      let #(p, in) = parse_paragraph(["#", ..in])
       #(p, refs, in)
     }
   }
@@ -158,8 +164,16 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
   case in {
     [] if text == "" -> list.reverse(acc)
     [] -> parse_inline([], "", [Text(text), ..acc])
+    ["[", ..rest] -> {
+      let #(container, in) = parse_link(rest, [])
+      parse_inline(in, "", [container, ..acc])
+    }
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
   }
+}
+
+fn parse_link(in: Chars, acc: List(Inline)) -> #(Inline, Chars) {
+  todo
 }
 
 fn heading_level(in: Chars, level: Int) -> Option(#(Int, Chars)) {
@@ -176,22 +190,28 @@ fn heading_level(in: Chars, level: Int) -> Option(#(Int, Chars)) {
 fn take_inline_text(inlines: List(Inline), acc: String) -> String {
   case inlines {
     [] -> acc
-    [Text(text), ..rest] -> take_inline_text(rest, acc <> text)
-    [_, ..rest] -> take_inline_text(rest, acc)
+    [first, ..rest] ->
+      case first {
+        Text(text) -> take_inline_text(rest, acc <> text)
+        Link(nested, _) -> {
+          let acc = take_inline_text(nested, acc)
+          take_inline_text(rest, acc)
+        }
+      }
   }
 }
 
-fn parse_paragraph(in: Chars, acc: String) -> #(Container, Chars) {
+fn parse_paragraph(in: Chars) -> #(Container, Chars) {
+  let #(inline_in, in) = take_paragraph_chars(in, [])
+  let inline = parse_inline(inline_in, "", [])
+  #(Paragraph(inline), in)
+}
+
+fn take_paragraph_chars(in: Chars, acc: Chars) -> #(Chars, Chars) {
   case in {
-    [] | ["\n"] -> {
-      let paragraph = Paragraph([Text(string.trim_right(acc))])
-      #(paragraph, [])
-    }
-    ["\n", "\n", ..rest] -> {
-      let paragraph = Paragraph([Text(string.trim_right(acc))])
-      #(paragraph, rest)
-    }
-    [c, ..rest] -> parse_paragraph(rest, acc <> c)
+    [] | ["\n"] -> #(list.reverse(acc), [])
+    ["\n", "\n", ..rest] -> #(list.reverse(acc), rest)
+    [c, ..rest] -> take_paragraph_chars(rest, [c, ..acc])
   }
 }
 
@@ -249,13 +269,31 @@ fn inlines_to_html(html: String, inlines: List(Inline), refs: Refs) -> String {
       html
       |> inline_to_html(inline, refs)
       |> inlines_to_html(rest, refs)
+      |> string.trim_right
     }
   }
 }
 
-fn inline_to_html(html: String, inline: Inline, _refs: Refs) -> String {
+fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
   case inline {
     Text(text) -> html <> text
+    Link(text, destination) -> {
+      html
+      |> open_tag("a", [#("href", destination_to_html(destination, refs))])
+      |> inlines_to_html(text, refs)
+      |> close_tag("a")
+    }
+  }
+}
+
+fn destination_to_html(destination: Destination, refs: Refs) -> String {
+  case destination {
+    Reference(id) ->
+      case map.get(refs, id) {
+        Ok(url) -> url
+        Error(Nil) -> ""
+      }
+    Url(url) -> url
   }
 }
 
