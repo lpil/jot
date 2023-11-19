@@ -1,200 +1,84 @@
-import gleam/int
 import gleam/list
 import gleam/string
-import gleam/iterator.{type Iterator, Done, Next}
+
+pub type Inline {
+  Text(String)
+}
+
+pub type Container {
+  Paragraph(List(Inline))
+}
+
+type Chars =
+  List(String)
 
 // TODO: document
 pub fn to_html(djot: String) -> String {
   djot
-  |> string.trim_left
+  |> to_ast
+  |> ast_to_html
+}
+
+// TODO: document
+pub fn to_ast(djot: String) -> List(Container) {
+  djot
+  |> string.replace("\r\n", "\n")
   |> string.to_graphemes
-  |> iterator.from_list
-  |> iterator.map(string.replace(_, "\r\n", "\n"))
-  |> iter
-  |> events_to_html("")
+  |> parse([])
 }
 
-type Chars =
-  Iterator(String)
-
-type Events =
-  Iterator(Event)
-
-pub type Event {
-  ParagraphStart
-  ParagraphEnd
-  HeadingStart(level: Int)
-  HeadingEnd(level: Int)
-  Text(String)
-}
-
-fn iter(in: Chars) -> Events {
-  case iterator.step(in) {
-    Done -> iterator.empty()
-    Next("\n", in) -> iter(in)
-    Next("#", in) -> iter_heading(in)
-    Next(g, in) -> start_paragraph(in, g)
+fn trim_lines(in: Chars) -> Chars {
+  case in {
+    [] -> []
+    ["\n", ..rest] -> trim_lines(rest)
+    [c, ..rest] -> [c, ..rest]
   }
 }
 
-fn start_paragraph(in: Chars, g: String) -> Events {
-  yield(ParagraphStart, iter_paragraph(in, g))
-}
-
-fn iter_paragraph(in: Chars, acc: String) -> Events {
-  case iterator.step(in) {
-    Done if acc == "" -> iterator.single(ParagraphEnd)
-    Done -> yield_text(acc, iter_paragraph(in, ""))
-
-    Next("\n", in) -> {
-      case iterator.step(in) {
-        Next("\r\n", in2) | Next("\n", in2) ->
-          yield_text(acc, yield(ParagraphEnd, iter(in2)))
-
-        Next(_, _) -> iter_paragraph(in, acc <> "\n")
-        Done -> iter_paragraph(in, acc)
-      }
+fn parse(in: Chars, ast: List(Container)) -> List(Container) {
+  let in = trim_lines(in)
+  case in {
+    [] -> list.reverse(ast)
+    [c, ..rest] -> {
+      let #(paragraph, in) = parse_paragraph(rest, c)
+      parse(in, [paragraph, ..ast])
     }
-
-    Next(g, in) -> iter_paragraph(in, acc <> g)
   }
 }
 
-fn iter_heading(in: Chars) -> Events {
-  let #(level, acc, in) = count_heading_hashes(in, "#", 1)
-  case level {
-    0 -> yield(ParagraphStart, iter_paragraph(in, acc))
-    _ -> yield(HeadingStart(level), iter_heading_text(in, level, ""))
+fn parse_paragraph(in: Chars, acc: String) -> #(Container, Chars) {
+  case in {
+    [] | ["\n"] -> #(Paragraph([Text(string.trim_right(acc))]), [])
+    ["\n", "\n", ..rest] -> #(Paragraph([Text(string.trim_right(acc))]), rest)
+
+    [c, ..rest] -> parse_paragraph(rest, acc <> c)
   }
 }
 
-fn iter_heading_text(in: Chars, level: Int, acc: String) -> Events {
-  case iterator.step(in) {
-    Next("\n", in) ->
-      case iterator.step(in) {
-        // Two newlines. The heading is over.
-        Next("\n", in2) -> yield_text(acc, yield(HeadingEnd(level), iter(in2)))
-
-        // One newline followed by some text.
-        // This could be more content, or a different heading
-        Next(_, _) -> {
-          let in = drop_spaces(in)
-          let #(count, _, in) = count_heading_hashes(in, "", 0)
-          case count {
-            // Text within same heading
-            0 -> iter_heading_text(in, level, acc <> "\n")
-
-            // The same heading, with preceeding hashes of the same length
-            _ if count == level -> iter_heading_text(in, level, acc <> "\n")
-
-            // Some other number of hashes. This is a new heading.
-            c -> {
-              yield_all(
-                [Text(acc), HeadingEnd(level), HeadingStart(c)],
-                iter_heading_text(in, c, ""),
-              )
-            }
-          }
-        }
-
-        Done -> iter_heading_text(in, level, acc)
-      }
-    Next(g, in) -> iter_heading_text(in, level, acc <> g)
-    Done -> yield_all([Text(acc), HeadingEnd(level)], iterator.empty())
-  }
+pub fn ast_to_html(ast: List(Container)) -> String {
+  containers_to_html(ast, "")
 }
 
-fn yield_all(first: List(Event), then: Events) -> Events {
-  list.fold_right(first, then, fn(a, b) { yield(b, a) })
+fn containers_to_html(containers: List(Container), html: String) -> String {
+  list.fold(containers, html, fn(a, b) { container_to_html(b, a) })
 }
 
-fn yield(first: Event, then: Events) -> Events {
-  case first {
-    Text(t) ->
-      case string.trim(t) {
-        "" -> then
-        text ->
-          iterator.single(Text(text))
-          |> iterator.append(then)
-      }
-
-    _ ->
-      iterator.single(first)
-      |> iterator.append(then)
-  }
-}
-
-fn yield_text(first: String, then: Events) -> Events {
-  yield(Text(first), then)
-}
-
-fn events_to_html(events: Iterator(Event), acc: String) -> String {
-  case iterator.step(events) {
-    Done -> acc
-    Next(event, events) ->
-      case event {
-        ParagraphEnd -> events_to_html(events, acc <> "</p>\n")
-        ParagraphStart -> events_to_html(events, acc <> "<p>")
-
-        HeadingStart(level) -> {
-          let plain =
-            plain_text_until(events, HeadingEnd(level))
-            |> string.replace(" ", "-")
-            |> string.replace("\n", "-")
-            |> string.replace("\"", "&quot;")
-          let acc = acc <> "<h" <> int.to_string(level)
-          let acc = case plain {
-            "" -> acc
-            _ -> acc <> " id=\"" <> plain <> "\""
-          }
-          let acc = acc <> ">"
-          events_to_html(events, acc)
-        }
-        HeadingEnd(level) -> {
-          let level = int.to_string(level)
-          events_to_html(events, acc <> "</h" <> level <> ">\n")
-        }
-
-        Text(text) -> events_to_html(events, acc <> text)
-      }
-  }
-}
-
-fn drop_spaces(iter: Chars) -> Chars {
-  case iterator.step(iter) {
-    Next(" ", iter2) -> drop_spaces(iter2)
-    Next("\t", iter2) -> drop_spaces(iter2)
-    Next(_, _) -> iter
-    Done -> iter
-  }
-}
-
-fn count_heading_hashes(
-  iter: Chars,
-  acc: String,
-  count: Int,
-) -> #(Int, String, Chars) {
-  case iterator.step(iter) {
-    Next("#", iter2) -> count_heading_hashes(iter2, acc <> "#", count + 1)
-    Next(" ", iter2) -> #(count, acc, iter2)
-    Next("\n", iter2) -> #(count, acc, iter2)
-    Next(_, _) -> #(0, acc, iter)
-    Done -> #(count, acc, iter)
-  }
-}
-
-fn plain_text_until(events: Events, end: Event) -> String {
-  events
-  |> iterator.take_while(fn(e) { e != end })
-  |> iterator.flat_map(fn(e) {
-    case e {
-      Text(t) ->
-        t
-        |> string.replace("#", "")
-        |> iterator.single
-      _ -> iterator.empty()
+fn container_to_html(container: Container, html: String) -> String {
+  case container {
+    Paragraph(inlines) -> {
+      let html = html <> "<p>"
+      let html = inlines_to_html(inlines, html)
+      html <> "</p>"
     }
-  })
-  |> iterator.fold("", fn(a, b) { a <> b })
-  |> string.trim
+  } <> "\n"
+}
+
+fn inlines_to_html(inlines: List(Inline), html: String) -> String {
+  list.fold(inlines, html, fn(a, b) { inline_to_html(b, a) })
+}
+
+fn inline_to_html(inline: Inline, html: String) -> String {
+  case inline {
+    Text(text) -> html <> text
+  }
 }
