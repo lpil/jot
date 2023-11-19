@@ -2,6 +2,7 @@ import gleam/map.{type Map}
 import gleam/int
 import gleam/list
 import gleam/string
+import gleam/option.{type Option, None, Some}
 
 pub type Document {
   Document(content: List(Container), references: Map(String, String))
@@ -58,6 +59,7 @@ fn drop_spaces(in: Chars) -> Chars {
 
 fn parse_document(in: Chars, refs: Refs, ast: List(Container)) -> Document {
   let in = drop_lines(in)
+  let in = drop_spaces(in)
   case in {
     [] -> Document(list.reverse(ast), refs)
     ["#", ..rest] -> {
@@ -72,22 +74,83 @@ fn parse_document(in: Chars, refs: Refs, ast: List(Container)) -> Document {
 }
 
 fn parse_heading(in: Chars, refs: Refs) -> #(Container, Refs, Chars) {
-  let #(level, in) = heading_level(in, 1)
-  let in = drop_spaces(in)
-  let #(inline_in, in) = take_heading_chars(in, [])
-  let inline = parse_inline(inline_in, "", [])
-  let text = take_inline_text(inline, "")
-  let id = text
-  let refs = map.insert(refs, id, "#" <> id)
-  let heading = Heading(level, [#("id", id)], inline)
-  #(heading, refs, in)
+  case heading_level(in, 1) {
+    Some(#(level, in)) -> {
+      let in = drop_spaces(in)
+      let #(inline_in, in) = take_heading_chars(in, level, [])
+      let inline = parse_inline(inline_in, "", [])
+      let text = take_inline_text(inline, "")
+      let #(refs, attrs) = case id_sanitise(text) {
+        "" -> #(refs, [])
+        id -> #(map.insert(refs, id, "#" <> id), [#("id", id)])
+      }
+      let heading = Heading(level, attrs, inline)
+      #(heading, refs, in)
+    }
+
+    None -> {
+      let #(p, in) = parse_paragraph(["#", ..in], "")
+      #(p, refs, in)
+    }
+  }
 }
 
-fn take_heading_chars(in: Chars, acc: Chars) -> #(Chars, Chars) {
+fn id_sanitise(content: String) -> String {
+  content
+  |> string.to_graphemes
+  |> list.filter(id_char)
+  |> id_escape("")
+}
+
+fn id_char(char: String) -> Bool {
+  case char {
+    "#" | "?" | "!" -> False
+    _ -> True
+  }
+}
+
+fn id_escape(content: Chars, acc: String) -> String {
+  case content {
+    [] -> acc
+
+    [" ", ..rest] | ["\n", ..rest] if rest == [] -> acc
+    [" ", ..rest] | ["\n", ..rest] if acc == "" -> id_escape(rest, acc)
+
+    [" ", ..rest] | ["\n", ..rest] -> id_escape(rest, acc <> "-")
+
+    [c, ..rest] -> id_escape(rest, acc <> c)
+  }
+}
+
+fn take_heading_chars(in: Chars, level: Int, acc: Chars) -> #(Chars, Chars) {
   case in {
     [] | ["\n"] -> #(list.reverse(acc), [])
-    ["\n", "\n", ..rest] -> #(list.reverse(acc), rest)
-    [c, ..rest] -> take_heading_chars(rest, [c, ..acc])
+    ["\n", "\n", ..in] -> #(list.reverse(acc), in)
+    ["\n", "#", ..rest] -> {
+      case take_heading_chars_newline_hash(rest, level - 1, ["\n", ..acc]) {
+        Some(#(acc, in)) -> take_heading_chars(in, level, acc)
+        None -> #(list.reverse(acc), in)
+      }
+    }
+    [c, ..in] -> take_heading_chars(in, level, [c, ..acc])
+  }
+}
+
+fn take_heading_chars_newline_hash(
+  in: Chars,
+  level: Int,
+  acc: Chars,
+) -> Option(#(Chars, Chars)) {
+  case in {
+    _ if level < 0 -> None
+    [] if level > 0 -> None
+
+    [] if level == 0 -> Some(#(acc, []))
+    [" ", ..in] if level == 0 -> Some(#(acc, in))
+
+    ["#", ..rest] -> take_heading_chars_newline_hash(rest, level - 1, acc)
+
+    [_, ..] -> None
   }
 }
 
@@ -95,17 +158,18 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
   case in {
     [] if text == "" -> list.reverse(acc)
     [] -> parse_inline([], "", [Text(text), ..acc])
-    ["\n", ..rest] -> parse_inline(rest, text, acc)
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
   }
 }
 
-fn heading_level(in: Chars, level: Int) -> #(Int, Chars) {
+fn heading_level(in: Chars, level: Int) -> Option(#(Int, Chars)) {
   case in {
     ["#", ..rest] -> heading_level(rest, level + 1)
-    ["\n", ..rest] -> #(level, rest)
-    [c, ..rest] -> #(level, [c, ..rest])
-    [] -> #(level, [])
+
+    [] if level > 0 -> Some(#(level, []))
+    [" ", ..rest] | ["\n", ..rest] if level != 0 -> Some(#(level, rest))
+
+    _ -> None
   }
 }
 

@@ -12,3 +12,82 @@
 <h1 id="Heading">Heading</h1>
 <h1 id="another">another</h1>
 ```
+
+```
+# Heading
+# continued
+.
+<h1 id="Heading-continued">Heading
+continued</h1>
+```
+
+```
+##
+heading
+
+para
+.
+<h2 id="heading">heading</h2>
+<p>para</p>
+```
+
+```
+##
+.
+<h2></h2>
+```
+
+```
+## Heading
+### Next level
+.
+<h2 id="Heading">Heading</h2>
+<h3 id="Next-level">Next level</h3>
+```
+
+```
+# Heading
+lazy
+.
+<h1 id="Heading-lazy">Heading
+lazy</h1>
+```
+
+```
+# Heading
+lazy
+# more
+lazy
+
+text
+.
+<h1 id="Heading-lazy-more-lazy">Heading
+lazy
+more
+lazy</h1>
+<p>text</p>
+```
+
+```
+##Notheading
+.
+<p>##Notheading</p>
+```
+
+```
+   ##    Heading
+.
+<h2 id="Heading">Heading</h2>
+```
+
+```
+## heading ##
+.
+<h2 id="heading">heading ##</h2>
+```
+
+```
+# # heading
+.
+<h1 id="heading"># heading</h1>
+```
