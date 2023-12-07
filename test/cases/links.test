@@ -49,3 +49,28 @@
 .
 <p><a>a</a></p>
 ```
+
+```
+[a][url]
+
+[url]: abc
+.
+<p><a href="abc">a</a></p>
+```
+
+```
+[a][url]
+
+      [url]: abc
+.
+<p><a href="abc">a</a></p>
+```
+
+```
+[a][url]
+
+[url]]: abc
+.
+<p><a>a</a></p>
+<p>[url]]: abc</p>
+```

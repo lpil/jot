@@ -70,14 +70,49 @@ fn parse_document(in: Chars, refs: Refs, ast: List(Container)) -> Document {
   let in = drop_spaces(in)
   case in {
     [] -> Document(list.reverse(ast), refs)
-    ["#", ..rest] -> {
-      let #(heading, refs, in) = parse_heading(rest, refs)
+
+    ["#", ..in] -> {
+      let #(heading, refs, in) = parse_heading(in, refs)
       parse_document(in, refs, [heading, ..ast])
     }
+
+    ["[", ..in2] -> {
+      case parse_ref_def(in2, "") {
+        None -> {
+          let #(paragraph, in) = parse_paragraph(in)
+          parse_document(in, refs, [paragraph, ..ast])
+        }
+        Some(#(id, url, in)) -> {
+          let refs = dict.insert(refs, id, url)
+          parse_document(in, refs, ast)
+        }
+      }
+    }
+
     _ -> {
       let #(paragraph, in) = parse_paragraph(in)
       parse_document(in, refs, [paragraph, ..ast])
     }
+  }
+}
+
+fn parse_ref_def(in: Chars, id: String) -> Option(#(String, String, Chars)) {
+  case in {
+    ["]", ":", ..in] -> parse_ref_value(in, id, "")
+    [] | ["]", ..] -> None
+    [c, ..in] -> parse_ref_def(in, id <> c)
+  }
+}
+
+fn parse_ref_value(
+  in: Chars,
+  id: String,
+  url: String,
+) -> Option(#(String, String, Chars)) {
+  case in {
+    [] -> Some(#(id, string.trim(url), []))
+    ["\n", ..in] -> Some(#(id, string.trim(url), in))
+    [c, ..in] -> parse_ref_value(in, id, url <> c)
   }
 }
 
