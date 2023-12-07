@@ -39,3 +39,5 @@ This project is a work in progress. So far it supports:
 - [x] Headings
 - [x] Paragraphs
 - [x] Links
+  - [x] URLs
+  - [x] References
