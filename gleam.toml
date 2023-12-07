@@ -1,16 +1,15 @@
 name = "jot"
 version = "0.1.0"
-
-# Fill out these fields if you intend to generate HTML documentation or publish
-# your project to the Hex package manager.
-#
-# description = ""
-# licences = ["Apache-2.0"]
-# repository = { type = "github", user = "username", repo = "project" }
-# links = [{ title = "Website", href = "https://gleam.run" }]
+description = "A parser for Djot, a markdown-like language"
+licences = ["Apache-2.0"]
+repository = { type = "github", user = "lpil", repo = "jot" }
+links = [
+  { title = "Djot Syntax", href = "https://djot.net/syntax" },
+  { title = "Sponsor", href = "https://github.com/sponsors/lpil" },
+]
 
 [dependencies]
-gleam_stdlib = "~> 0.32"
+gleam_stdlib = "~> 0.33"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"
