@@ -165,15 +165,55 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
     [] if text == "" -> list.reverse(acc)
     [] -> parse_inline([], "", [Text(text), ..acc])
     ["[", ..rest] -> {
-      let #(container, in) = parse_link(rest, [])
+      let #(container, in) = parse_link(rest)
       parse_inline(in, "", [container, ..acc])
     }
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
   }
 }
 
-fn parse_link(in: Chars, acc: List(Inline)) -> #(Inline, Chars) {
-  todo
+fn parse_link(in: Chars) -> #(Inline, Chars) {
+  case take_link_chars(in, []) {
+    // This wasn't a link, it was just a `[` in the text
+    None -> #(Text("["), in)
+
+    Some(#(inline_in, ref, in)) -> {
+      let inline = parse_inline(inline_in, "", [])
+      let link = Link(inline, ref)
+      #(link, in)
+    }
+  }
+}
+
+fn take_link_chars(
+  in: Chars,
+  inline_in: Chars,
+) -> Option(#(Chars, Destination, Chars)) {
+  case in {
+    [] | ["\n"] -> None
+
+    ["]", "(", ..in] -> {
+      let inline_in = list.reverse(inline_in)
+      take_link_chars_destination(in, inline_in, "")
+    }
+    [c, ..rest] -> take_link_chars(rest, [c, ..inline_in])
+  }
+}
+
+fn take_link_chars_destination(
+  in: Chars,
+  inline_in: Chars,
+  acc: String,
+) -> Option(#(Chars, Destination, Chars)) {
+  case in {
+    [] -> None
+
+    [")", ..in] -> {
+      Some(#(inline_in, Url(acc), in))
+    }
+
+    [c, ..rest] -> take_link_chars_destination(rest, inline_in, acc <> c)
+  }
 }
 
 fn heading_level(in: Chars, level: Int) -> Option(#(Int, Chars)) {
