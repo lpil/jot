@@ -1,3 +1,5 @@
+// TODO: collapse adjacent text nodes
+
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
@@ -165,22 +167,24 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
     [] if text == "" -> list.reverse(acc)
     [] -> parse_inline([], "", [Text(text), ..acc])
     ["[", ..rest] -> {
-      let #(container, in) = parse_link(rest)
-      parse_inline(in, "", [container, ..acc])
+      case parse_link(rest) {
+        None -> parse_inline(rest, text <> "[", acc)
+        Some(#(link, in)) -> parse_inline(in, "", [link, ..acc])
+      }
     }
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
   }
 }
 
-fn parse_link(in: Chars) -> #(Inline, Chars) {
+fn parse_link(in: Chars) -> Option(#(Inline, Chars)) {
   case take_link_chars(in, []) {
     // This wasn't a link, it was just a `[` in the text
-    None -> #(Text("["), in)
+    None -> None
 
     Some(#(inline_in, ref, in)) -> {
       let inline = parse_inline(inline_in, "", [])
       let link = Link(inline, ref)
-      #(link, in)
+      Some(#(link, in))
     }
   }
 }
@@ -190,11 +194,16 @@ fn take_link_chars(
   inline_in: Chars,
 ) -> Option(#(Chars, Destination, Chars)) {
   case in {
-    [] | ["\n"] -> None
+    // This wasn't a link, it was just a `[..]` in the text
+    [] -> None
 
+    ["]", "[", ..in] -> {
+      let inline_in = list.reverse(inline_in)
+      take_link_chars_destination(in, False, inline_in, "")
+    }
     ["]", "(", ..in] -> {
       let inline_in = list.reverse(inline_in)
-      take_link_chars_destination(in, inline_in, "")
+      take_link_chars_destination(in, True, inline_in, "")
     }
     [c, ..rest] -> take_link_chars(rest, [c, ..inline_in])
   }
@@ -202,17 +211,19 @@ fn take_link_chars(
 
 fn take_link_chars_destination(
   in: Chars,
+  is_url: Bool,
   inline_in: Chars,
   acc: String,
 ) -> Option(#(Chars, Destination, Chars)) {
   case in {
     [] -> None
 
-    [")", ..in] -> {
-      Some(#(inline_in, Url(acc), in))
-    }
+    [")", ..in] if is_url -> Some(#(inline_in, Url(acc), in))
+    ["]", ..in] if !is_url -> Some(#(inline_in, Reference(acc), in))
 
-    [c, ..rest] -> take_link_chars_destination(rest, inline_in, acc <> c)
+    ["\n", ..rest] -> take_link_chars_destination(rest, is_url, inline_in, acc)
+    [c, ..rest] ->
+      take_link_chars_destination(rest, is_url, inline_in, acc <> c)
   }
 }
 
@@ -319,21 +330,24 @@ fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
     Text(text) -> html <> text
     Link(text, destination) -> {
       html
-      |> open_tag("a", [#("href", destination_to_html(destination, refs))])
+      |> open_tag("a", destination_attribute(destination, refs))
       |> inlines_to_html(text, refs)
       |> close_tag("a")
     }
   }
 }
 
-fn destination_to_html(destination: Destination, refs: Refs) -> String {
+fn destination_attribute(
+  destination: Destination,
+  refs: Refs,
+) -> List(#(String, String)) {
   case destination {
     Reference(id) ->
       case dict.get(refs, id) {
-        Ok(url) -> url
-        Error(Nil) -> ""
+        Ok(url) -> [#("href", url)]
+        Error(Nil) -> []
       }
-    Url(url) -> url
+    Url(url) -> [#("href", url)]
   }
 }
 
