@@ -13,6 +13,7 @@ pub type Document {
 pub type Container {
   Paragraph(List(Inline))
   Heading(level: Int, attributes: Attrs, content: List(Inline))
+  Codeblock(language: Option(String), content: String)
 }
 
 pub type Inline {
@@ -76,6 +77,16 @@ fn parse_document(in: Chars, refs: Refs, ast: List(Container)) -> Document {
       parse_document(in, refs, [heading, ..ast])
     }
 
+    ["`", ..in2] -> {
+      case parse_codeblock(in2, "`") {
+        None -> {
+          let #(paragraph, in) = parse_paragraph(in)
+          parse_document(in, refs, [paragraph, ..ast])
+        }
+        Some(#(codeblock, in)) -> parse_document(in, refs, [codeblock, ..ast])
+      }
+    }
+
     ["[", ..in2] -> {
       case parse_ref_def(in2, "") {
         None -> {
@@ -93,6 +104,76 @@ fn parse_document(in: Chars, refs: Refs, ast: List(Container)) -> Document {
       let #(paragraph, in) = parse_paragraph(in)
       parse_document(in, refs, [paragraph, ..ast])
     }
+  }
+}
+
+fn parse_codeblock(in: Chars, delim: String) -> Option(#(Container, Chars)) {
+  use #(language, count, in) <- option.then(parse_codeblock_start(in, delim, 1))
+  let #(content, in) = parse_codeblock_content(in, delim, count, "")
+  Some(#(Codeblock(language, content), in))
+}
+
+fn parse_codeblock_start(
+  in: Chars,
+  delim: String,
+  count: Int,
+) -> Option(#(Option(String), Int, Chars)) {
+  case in {
+    [c, ..in] if c == delim -> parse_codeblock_start(in, delim, count + 1)
+    ["\n", ..in] if count >= 3 -> Some(#(None, count, in))
+    [_, ..] if count >= 3 -> {
+      let in = drop_spaces(in)
+      let #(language, in) = parse_codeblock_language(in, "")
+      Some(#(language, count, in))
+    }
+    _ -> None
+  }
+}
+
+fn parse_codeblock_content(
+  in: Chars,
+  delim: String,
+  count: Int,
+  acc: String,
+) -> #(String, Chars) {
+  case parse_codeblock_end(in, delim, count) {
+    None -> {
+      let #(acc, in) = slurp_verbatim_line(in, acc)
+      parse_codeblock_content(in, delim, count, acc)
+    }
+    Some(#(in)) -> #(acc, in)
+  }
+}
+
+fn slurp_verbatim_line(in: Chars, acc: String) -> #(String, Chars) {
+  case in {
+    [] -> #(acc, [])
+    ["\n", ..in] -> #(acc <> "\n", in)
+    [c, ..in] -> slurp_verbatim_line(in, acc <> c)
+  }
+}
+
+fn parse_codeblock_end(in: Chars, delim: String, count: Int) -> Option(#(Chars)) {
+  case in {
+    ["\n", ..in] if count == 0 -> Some(#(in))
+    _ if count == 0 -> Some(#(in))
+
+    [c, ..in] if c == delim -> parse_codeblock_end(in, delim, count - 1)
+
+    [] -> Some(#(in))
+    _ -> None
+  }
+}
+
+fn parse_codeblock_language(
+  in: Chars,
+  language: String,
+) -> #(Option(String), Chars) {
+  case in {
+    [] -> #(None, in)
+    ["\n", ..in] if language == "" -> #(None, in)
+    ["\n", ..in] -> #(Some(language), in)
+    [c, ..in] -> parse_codeblock_language(in, language <> c)
   }
 }
 
@@ -327,6 +408,19 @@ fn container_to_html(html: String, container: Container, refs: Refs) -> String {
       |> open_tag("p", [])
       |> inlines_to_html(inlines, refs)
       |> close_tag("p")
+    }
+
+    Codeblock(language, content) -> {
+      let code_attrs = case language {
+        Some(lang) -> [#("class", "language-" <> lang)]
+        None -> []
+      }
+      html
+      |> open_tag("pre", [])
+      |> open_tag("code", code_attrs)
+      |> string.append(content)
+      |> close_tag("code")
+      |> close_tag("pre")
     }
 
     Heading(level, attributes, inlines) -> {

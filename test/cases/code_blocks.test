@@ -1,0 +1,31 @@
+````
+```
+code
+```
+.
+<pre><code>code
+</code></pre>
+````
+
+````
+```
+code
+  block
+```
+.
+<pre><code>code
+  block
+</code></pre>
+````
+
+
+````
+```gleam
+code
+  block
+```
+.
+<pre><code class="language-gleam">code
+  block
+</code></pre>
+````
