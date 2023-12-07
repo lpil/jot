@@ -77,8 +77,8 @@ fn parse_document(in: Chars, refs: Refs, ast: List(Container)) -> Document {
       parse_document(in, refs, [heading, ..ast])
     }
 
-    ["`", ..in2] -> {
-      case parse_codeblock(in2, "`") {
+    ["~" as delim, ..in2] | ["`" as delim, ..in2] -> {
+      case parse_codeblock(in2, delim) {
         None -> {
           let #(paragraph, in) = parse_paragraph(in)
           parse_document(in, refs, [paragraph, ..ast])

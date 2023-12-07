@@ -29,3 +29,44 @@ code
   block
 </code></pre>
 ````
+
+```
+~~~
+code
+  block
+~~~
+.
+<pre><code>code
+  block
+</code></pre>
+```
+
+````
+``` python
+x = y + 3
+```
+.
+<pre><code class="language-python">x = y + 3
+</code></pre>
+````
+
+````
+```
+hi
+```
+```
+two
+```
+.
+<pre><code>hi
+</code></pre>
+<pre><code>two
+</code></pre>
+````
+
+````
+```
+```
+.
+<pre><code></code></pre>
+````
