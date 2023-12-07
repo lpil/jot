@@ -1,11 +1,11 @@
-import gleam/map.{type Map}
+import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
 import gleam/string
 import gleam/option.{type Option, None, Some}
 
 pub type Document {
-  Document(content: List(Container), references: Map(String, String))
+  Document(content: List(Container), references: Dict(String, String))
 }
 
 pub type Container {
@@ -30,7 +30,7 @@ type Chars =
   List(String)
 
 type Refs =
-  Map(String, String)
+  Dict(String, String)
 
 // TODO: document
 pub fn to_html(djot: String) -> String {
@@ -44,7 +44,7 @@ pub fn parse(djot: String) -> Document {
   djot
   |> string.replace("\r\n", "\n")
   |> string.to_graphemes
-  |> parse_document(map.new(), [])
+  |> parse_document(dict.new(), [])
 }
 
 fn drop_lines(in: Chars) -> Chars {
@@ -88,7 +88,7 @@ fn parse_heading(in: Chars, refs: Refs) -> #(Container, Refs, Chars) {
       let text = take_inline_text(inline, "")
       let #(refs, attrs) = case id_sanitise(text) {
         "" -> #(refs, [])
-        id -> #(map.insert(refs, id, "#" <> id), [#("id", id)])
+        id -> #(dict.insert(refs, id, "#" <> id), [#("id", id)])
       }
       let heading = Heading(level, attrs, inline)
       #(heading, refs, in)
@@ -156,7 +156,7 @@ fn take_heading_chars_newline_hash(
 
     ["#", ..rest] -> take_heading_chars_newline_hash(rest, level - 1, acc)
 
-    [_, ..] -> None
+    _ -> None
   }
 }
 
@@ -289,7 +289,7 @@ fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
 fn destination_to_html(destination: Destination, refs: Refs) -> String {
   case destination {
     Reference(id) ->
-      case map.get(refs, id) {
+      case dict.get(refs, id) {
         Ok(url) -> url
         Error(Nil) -> ""
       }
