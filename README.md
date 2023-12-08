@@ -40,3 +40,4 @@ This project is a work in progress. So far it supports:
 - [x] Paragraphs
 - [x] Links (inline and reference)
 - [x] Code blocks
+- [x] Id and class block attributes
