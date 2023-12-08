@@ -10,10 +10,31 @@ pub type Document {
   Document(content: List(Container), references: Dict(String, String))
 }
 
+fn add_attribute(
+  attributes: Dict(String, String),
+  key: String,
+  value: String,
+) -> Dict(String, String) {
+  case key {
+    "class" ->
+      dict.update(attributes, key, fn(previous) {
+        case previous {
+          None -> value
+          Some(previous) -> previous <> " " <> value
+        }
+      })
+    _ -> dict.insert(attributes, key, value)
+  }
+}
+
 pub type Container {
-  Paragraph(List(Inline))
-  Heading(level: Int, attributes: Attrs, content: List(Inline))
-  Codeblock(language: Option(String), content: String)
+  Paragraph(attributes: Dict(String, String), List(Inline))
+  Heading(attributes: Dict(String, String), level: Int, content: List(Inline))
+  Codeblock(
+    attributes: Dict(String, String),
+    language: Option(String),
+    content: String,
+  )
 }
 
 pub type Inline {
@@ -25,9 +46,6 @@ pub type Destination {
   Reference(String)
   Url(String)
 }
-
-type Attrs =
-  List(#(String, String))
 
 type Chars =
   List(String)
@@ -47,7 +65,7 @@ pub fn parse(djot: String) -> Document {
   djot
   |> string.replace("\r\n", "\n")
   |> string.to_graphemes
-  |> parse_document(dict.new(), [])
+  |> parse_document(dict.new(), [], dict.new())
 }
 
 fn drop_lines(in: Chars) -> Chars {
@@ -66,51 +84,70 @@ fn drop_spaces(in: Chars) -> Chars {
   }
 }
 
-fn parse_document(in: Chars, refs: Refs, ast: List(Container)) -> Document {
+fn parse_document(
+  in: Chars,
+  refs: Refs,
+  ast: List(Container),
+  attrs: Dict(String, String),
+) -> Document {
   let in = drop_lines(in)
   let in = drop_spaces(in)
   case in {
     [] -> Document(list.reverse(ast), refs)
 
+    ["{", ..in2] ->
+      case parse_attributes(in2, attrs) {
+        None -> {
+          let #(paragraph, in) = parse_paragraph(in, attrs)
+          parse_document(in, refs, [paragraph, ..ast], dict.new())
+        }
+        Some(#(attrs, in)) -> parse_document(in, refs, ast, attrs)
+      }
+
     ["#", ..in] -> {
-      let #(heading, refs, in) = parse_heading(in, refs)
-      parse_document(in, refs, [heading, ..ast])
+      let #(heading, refs, in) = parse_heading(in, refs, attrs)
+      parse_document(in, refs, [heading, ..ast], dict.new())
     }
 
     ["~" as delim, ..in2] | ["`" as delim, ..in2] -> {
-      case parse_codeblock(in2, delim) {
+      case parse_codeblock(in2, attrs, delim) {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in)
-          parse_document(in, refs, [paragraph, ..ast])
+          let #(paragraph, in) = parse_paragraph(in, attrs)
+          parse_document(in, refs, [paragraph, ..ast], dict.new())
         }
-        Some(#(codeblock, in)) -> parse_document(in, refs, [codeblock, ..ast])
+        Some(#(codeblock, in)) ->
+          parse_document(in, refs, [codeblock, ..ast], dict.new())
       }
     }
 
     ["[", ..in2] -> {
       case parse_ref_def(in2, "") {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in)
-          parse_document(in, refs, [paragraph, ..ast])
+          let #(paragraph, in) = parse_paragraph(in, attrs)
+          parse_document(in, refs, [paragraph, ..ast], dict.new())
         }
         Some(#(id, url, in)) -> {
           let refs = dict.insert(refs, id, url)
-          parse_document(in, refs, ast)
+          parse_document(in, refs, ast, dict.new())
         }
       }
     }
 
     _ -> {
-      let #(paragraph, in) = parse_paragraph(in)
-      parse_document(in, refs, [paragraph, ..ast])
+      let #(paragraph, in) = parse_paragraph(in, attrs)
+      parse_document(in, refs, [paragraph, ..ast], dict.new())
     }
   }
 }
 
-fn parse_codeblock(in: Chars, delim: String) -> Option(#(Container, Chars)) {
+fn parse_codeblock(
+  in: Chars,
+  attrs: Dict(String, String),
+  delim: String,
+) -> Option(#(Container, Chars)) {
   use #(language, count, in) <- option.then(parse_codeblock_start(in, delim, 1))
   let #(content, in) = parse_codeblock_content(in, delim, count, "")
-  Some(#(Codeblock(language, content), in))
+  Some(#(Codeblock(attrs, language, content), in))
 }
 
 fn parse_codeblock_start(
@@ -197,7 +234,60 @@ fn parse_ref_value(
   }
 }
 
-fn parse_heading(in: Chars, refs: Refs) -> #(Container, Refs, Chars) {
+fn parse_attributes(
+  in: Chars,
+  attrs: Dict(String, String),
+) -> Option(#(Dict(String, String), Chars)) {
+  let in = drop_spaces(in)
+  case in {
+    [] -> None
+    ["}", ..in] -> parse_attributes_end(in, attrs)
+    ["#", ..in] -> {
+      case parse_attributes_id_or_class(in, "") {
+        Some(#(id, in)) -> parse_attributes(in, add_attribute(attrs, "id", id))
+        None -> None
+      }
+    }
+    [".", ..in] -> {
+      case parse_attributes_id_or_class(in, "") {
+        Some(#(c, in)) -> parse_attributes(in, add_attribute(attrs, "class", c))
+        None -> None
+      }
+    }
+    _ -> None
+  }
+}
+
+fn parse_attributes_id_or_class(
+  in: Chars,
+  id: String,
+) -> Option(#(String, Chars)) {
+  case in {
+    [] | ["}", ..] | [" ", ..] -> Some(#(id, in))
+    ["#", ..] | [".", ..] | ["=", ..] -> None
+    // TODO: in future this will be permitted as attributes can be over multiple lines
+    ["\n", ..] -> None
+    [c, ..in] -> parse_attributes_id_or_class(in, id <> c)
+  }
+}
+
+fn parse_attributes_end(
+  in: Chars,
+  attrs: Dict(String, String),
+) -> Option(#(Dict(String, String), Chars)) {
+  case in {
+    [] -> Some(#(attrs, []))
+    ["\n", ..in] -> Some(#(attrs, in))
+    [" ", ..in] -> parse_attributes_end(in, attrs)
+    [_, ..] -> None
+  }
+}
+
+fn parse_heading(
+  in: Chars,
+  refs: Refs,
+  attrs: Dict(String, String),
+) -> #(Container, Refs, Chars) {
   case heading_level(in, 1) {
     Some(#(level, in)) -> {
       let in = drop_spaces(in)
@@ -205,15 +295,24 @@ fn parse_heading(in: Chars, refs: Refs) -> #(Container, Refs, Chars) {
       let inline = parse_inline(inline_in, "", [])
       let text = take_inline_text(inline, "")
       let #(refs, attrs) = case id_sanitise(text) {
-        "" -> #(refs, [])
-        id -> #(dict.insert(refs, id, "#" <> id), [#("id", id)])
+        "" -> #(refs, attrs)
+        id -> {
+          case dict.get(refs, id) {
+            Ok(_) -> #(refs, attrs)
+            Error(_) -> {
+              let refs = dict.insert(refs, id, "#" <> id)
+              let attrs = add_attribute(attrs, "id", id)
+              #(refs, attrs)
+            }
+          }
+        }
       }
-      let heading = Heading(level, attrs, inline)
+      let heading = Heading(attrs, level, inline)
       #(heading, refs, in)
     }
 
     None -> {
-      let #(p, in) = parse_paragraph(["#", ..in])
+      let #(p, in) = parse_paragraph(["#", ..in], attrs)
       #(p, refs, in)
     }
   }
@@ -368,10 +467,13 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
   }
 }
 
-fn parse_paragraph(in: Chars) -> #(Container, Chars) {
+fn parse_paragraph(
+  in: Chars,
+  attrs: Dict(String, String),
+) -> #(Container, Chars) {
   let #(inline_in, in) = take_paragraph_chars(in, [])
   let inline = parse_inline(inline_in, "", [])
-  #(Paragraph(inline), in)
+  #(Paragraph(attrs, inline), in)
 }
 
 fn take_paragraph_chars(in: Chars, acc: Chars) -> #(Chars, Chars) {
@@ -403,37 +505,41 @@ fn containers_to_html(
 
 fn container_to_html(html: String, container: Container, refs: Refs) -> String {
   case container {
-    Paragraph(inlines) -> {
+    Paragraph(attrs, inlines) -> {
       html
-      |> open_tag("p", [])
+      |> open_tag("p", attrs)
       |> inlines_to_html(inlines, refs)
       |> close_tag("p")
     }
 
-    Codeblock(language, content) -> {
+    Codeblock(attrs, language, content) -> {
       let code_attrs = case language {
-        Some(lang) -> [#("class", "language-" <> lang)]
-        None -> []
+        Some(lang) -> add_attribute(attrs, "class", "language-" <> lang)
+        None -> attrs
       }
       html
-      |> open_tag("pre", [])
+      |> open_tag("pre", dict.new())
       |> open_tag("code", code_attrs)
       |> string.append(content)
       |> close_tag("code")
       |> close_tag("pre")
     }
 
-    Heading(level, attributes, inlines) -> {
+    Heading(attrs, level, inlines) -> {
       let tag = "h" <> int.to_string(level)
       html
-      |> open_tag(tag, attributes)
+      |> open_tag(tag, attrs)
       |> inlines_to_html(inlines, refs)
       |> close_tag(tag)
     }
   } <> "\n"
 }
 
-fn open_tag(html: String, tag: String, attributes: Attrs) -> String {
+fn open_tag(
+  html: String,
+  tag: String,
+  attributes: Dict(String, String),
+) -> String {
   let html = html <> "<" <> tag
   attributes_to_html(html, attributes) <> ">"
 }
@@ -469,23 +575,23 @@ fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
 fn destination_attribute(
   destination: Destination,
   refs: Refs,
-) -> List(#(String, String)) {
+) -> Dict(String, String) {
+  let dict = dict.new()
   case destination {
+    Url(url) -> dict.insert(dict, "href", url)
     Reference(id) ->
       case dict.get(refs, id) {
-        Ok(url) -> [#("href", url)]
-        Error(Nil) -> []
+        Ok(url) -> dict.insert(dict, "href", url)
+        Error(Nil) -> dict
       }
-    Url(url) -> [#("href", url)]
   }
 }
 
-fn attributes_to_html(html: String, attributes: Attrs) -> String {
-  case attributes {
-    [] -> html
-    [#(key, value), ..rest] -> {
-      let html = html <> " " <> key <> "=\"" <> value <> "\""
-      attributes_to_html(html, rest)
-    }
-  }
+fn attributes_to_html(html: String, attributes: Dict(String, String)) -> String {
+  attributes
+  |> dict.to_list
+  |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
+  |> list.fold(html, fn(html, pair) {
+    html <> " " <> pair.0 <> "=\"" <> pair.1 <> "\""
+  })
 }

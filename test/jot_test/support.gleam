@@ -32,8 +32,13 @@ fn parse(
   case lines {
     [] -> list.reverse(examples)
     [delim, ..lines] -> {
-      let #(example, lines) = parse_one(lines, delim, path)
-      parse(lines, path, [example, ..examples])
+      case string.starts_with(delim, "`") {
+        True -> {
+          let #(example, lines) = parse_one(lines, delim, path)
+          parse(lines, path, [example, ..examples])
+        }
+        False -> parse(lines, path, examples)
+      }
     }
   }
 }

@@ -100,15 +100,6 @@ After {#id} space
 </p>
 ```
 
-Block attributes come before the block, on a line by themselves.
-
-```
-{#id .class}
-A paragraph
-.
-<p id="id" class="class">A paragraph</p>
-```
-
 Use indentation if you need to continue the attributes over a line break.
 
 ```
