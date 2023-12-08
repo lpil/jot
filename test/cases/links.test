@@ -74,3 +74,21 @@
 <p><a>a</a></p>
 <p>[url]]: abc</p>
 ```
+
+```
+This is a [Djot][djot] document.
+
+[djot]: https://www.djot.net/
+.
+<p>This is a <a href="https://www.djot.net/">Djot</a> document.</p>
+```
+
+```
+This is an [inline][inline] link with more [links][links].
+
+[inline]: http://example.com/inline
+
+[links]: http://example.com/links
+.
+<p>This is an <a href="http://example.com/inline">inline</a> link with more <a href="http://example.com/links">links</a>.</p>
+```
