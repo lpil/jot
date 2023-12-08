@@ -23,10 +23,10 @@ This is a [Djot][djot] document.
 
 pub fn main() {
   // Turn the document into HTML
-  let html = djot.to_html(document)
+  let html = jot.to_html(document)
 
   // Alternatively, parse the document to an AST
-  let ast = djot.parse(document)
+  let ast = jot.parse(document)
 }
 ```
 
