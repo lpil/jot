@@ -384,7 +384,7 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
     ["[", ..rest] -> {
       case parse_link(rest) {
         None -> parse_inline(rest, text <> "[", acc)
-        Some(#(link, in)) -> parse_inline(in, "", [link, ..acc])
+        Some(#(link, in)) -> parse_inline(in, "", [link, Text(text), ..acc])
       }
     }
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
