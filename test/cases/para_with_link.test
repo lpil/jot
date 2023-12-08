@@ -1,0 +1,7 @@
+```
+This is a [Djot][djot] document.
+
+[djot]: https://www.djot.net/
+.
+<p>This is a <a href="https://www.djot.net/">Djot</a> document.</p>
+```
