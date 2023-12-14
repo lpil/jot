@@ -1,5 +1,4 @@
 import simplifile
-import filepath
 import gleam/list
 import gleam/string
 
@@ -9,11 +8,10 @@ pub type Example {
 
 const cases_directory = "test/cases"
 
-pub fn load_example_test_cases() -> List(Example) {
-  let assert Ok(tests) = simplifile.read_directory(cases_directory)
+pub fn load_example_test_cases() -> List(List(Example)) {
+  let assert Ok(tests) = simplifile.get_files(cases_directory)
   tests
-  |> list.map(filepath.join(cases_directory, _))
-  |> list.flat_map(load_and_parse_file)
+  |> list.map(load_and_parse_file)
 }
 
 fn load_and_parse_file(path: String) -> List(Example) {
