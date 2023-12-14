@@ -91,3 +91,9 @@ lazy</h1>
 .
 <h1 id="heading"># heading</h1>
 ```
+
+```
+### Heading with, comma
+.
+<h3 id="Heading-with-comma">Heading with, comma</h3>
+```

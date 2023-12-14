@@ -327,7 +327,7 @@ fn id_sanitise(content: String) -> String {
 
 fn id_char(char: String) -> Bool {
   case char {
-    "#" | "?" | "!" -> False
+    "#" | "?" | "!" | "," -> False
     _ -> True
   }
 }
