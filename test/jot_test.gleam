@@ -14,7 +14,7 @@ pub fn main() {
       case tst.html == jot.to_html(tst.djot) {
         True -> {
           use <- testbldr.named(".")
-          testpieces.Pass
+          testpieces.Silent
         }
         False -> {
           use <- testbldr.named(int.to_string(i + 1) <> " in " <> tst.file)

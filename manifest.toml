@@ -2,15 +2,15 @@
 # You typically do not need to edit this file
 
 packages = [
-  { name = "gleam_community_ansi", version = "1.2.0", build_tools = ["gleam"], requirements = ["gleam_community_colour", "gleam_stdlib"], otp_app = "gleam_community_ansi", source = "hex", outer_checksum = "8B5A9677BC5A2738712BBAF2BA289B1D8195FDF962BBC769569976AD5E9794E1" },
+  { name = "gleam_community_ansi", version = "1.2.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_community_colour"], otp_app = "gleam_community_ansi", source = "hex", outer_checksum = "8B5A9677BC5A2738712BBAF2BA289B1D8195FDF962BBC769569976AD5E9794E1" },
   { name = "gleam_community_colour", version = "1.2.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_community_colour", source = "hex", outer_checksum = "036C206886AFB9F153C552700A7A0B4D2864E3BC96A20C77E5F34A013C051BE3" },
   { name = "gleam_erlang", version = "0.23.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_erlang", source = "hex", outer_checksum = "C21CFB816C114784E669FFF4BBF433535EEA9960FA2F216209B8691E87156B96" },
   { name = "gleam_stdlib", version = "0.33.1", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "3CEAD7B153D896499C78390B22CC968620C27500C922AED3A5DD7B536F922B25" },
   { name = "simplifile", version = "0.4.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "simplifile", source = "hex", outer_checksum = "8F3C94B83F691CCFACD784A4D7C1F7E5A0437D93341549B908EE3B32E3477447" },
-  { name = "testbldr", version = "0.2.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_community_ansi", "gleam_erlang"], otp_app = "testbldr", source = "hex", outer_checksum = "D2D46402EB835CFDA4EC6ED475810256F3C1742F1B17CA8ED4B3E705809A6CBC" },
+  { name = "testbldr", version = "0.3.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib", "gleam_community_ansi"], otp_app = "testbldr", source = "hex", outer_checksum = "88E8B62A86EF7730A7C15799E098CB275C8E59E3EE5194C29626CE059D021495" },
 ]
 
 [requirements]
 gleam_stdlib = { version = "~> 0.33" }
 simplifile = { version = "~> 0.3" }
-testbldr = { version = "~> 0.2" }
+testbldr = { version = "~> 0.3" }

@@ -11,7 +11,7 @@ links = [
 
 [dependencies]
 gleam_stdlib = "~> 0.33"
-testbldr = "~> 0.2"
+testbldr = "~> 0.3"
 
 [dev-dependencies]
 simplifile = "~> 0.3"
