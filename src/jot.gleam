@@ -40,6 +40,7 @@ pub type Container {
 pub type Inline {
   Text(String)
   Link(content: List(Inline), destination: Destination)
+  Verbatim(String)
 }
 
 pub type Destination {
@@ -387,7 +388,24 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
         Some(#(link, in)) -> parse_inline(in, "", [link, Text(text), ..acc])
       }
     }
+    ["`", ..rest] -> {
+      let #(verbatim, in) = parse_verbatim(rest)
+      parse_inline(in, "", [verbatim, Text(text), ..acc])
+    }
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
+  }
+}
+
+fn parse_verbatim(in: Chars) -> #(Inline, Chars) {
+  let #(inline_in, in) = take_verbatim_chars(in, "")
+  #(Verbatim(inline_in), in)
+}
+
+fn take_verbatim_chars(in: Chars, inline_in: String) -> #(String, Chars) {
+  case in {
+    [] -> #(inline_in, [])
+    ["`", ..in] -> #(inline_in, in)
+    [c, ..rest] -> take_verbatim_chars(rest, inline_in <> c)
   }
 }
 
@@ -463,6 +481,7 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
           let acc = take_inline_text(nested, acc)
           take_inline_text(rest, acc)
         }
+        Verbatim(text) -> take_inline_text(rest, acc <> text)
       }
   }
 }
@@ -568,6 +587,12 @@ fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
       |> open_tag("a", destination_attribute(destination, refs))
       |> inlines_to_html(text, refs)
       |> close_tag("a")
+    }
+    Verbatim(text) -> {
+      html
+      |> open_tag("code", dict.new())
+      |> string.append(text)
+      |> close_tag("code")
     }
   }
 }
