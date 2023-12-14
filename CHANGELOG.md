@@ -2,7 +2,7 @@
 
 ## Unpublished
 
-- Fix bug where commas aren't sanitized when creating id attributes.
+- Fixed bug where commas aren't sanitized when creating id attributes.
 
 ## v0.2.1 - 2023-12-08
 
