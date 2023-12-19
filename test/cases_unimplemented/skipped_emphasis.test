@@ -1,0 +1,35 @@
+```
+aa_"bb"_cc
+.
+<p>aa<em>“bb”</em>cc</p>
+```
+
+Inline content allowed:
+
+```
+*foo [link](url) `*`*
+.
+<p><strong>foo <a href="url">link</a> <code>*</code></strong></p>
+```
+
+```
+*****a*****
+.
+<p><strong><strong><strong><strong><strong>a</strong></strong></strong></strong></strong></p>
+```
+
+Code takes precedence:
+
+```
+_`a_`b
+.
+<p>_<code>a_</code>b</p>
+```
+
+Autolinks take precedence:
+
+```
+_<http://example.com/a_b>
+.
+<p>_<a href="http://example.com/a_b">http://example.com/a_b</a></p>
+```

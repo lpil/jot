@@ -1,5 +1,5 @@
 // TODO: collapse adjacent text nodes
-
+import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
@@ -40,6 +40,13 @@ pub type Container {
 pub type Inline {
   Text(String)
   Link(content: List(Inline), destination: Destination)
+  Subscript(content: List(Inline))
+  Superscript(content: List(Inline))
+  Emphasis(content: List(Inline))
+  Strong(content: List(Inline))
+  Insert(content: List(Inline))
+  Delete(content: List(Inline))
+  Highlight(content: List(Inline))
 }
 
 pub type Destination {
@@ -381,12 +388,53 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
   case in {
     [] if text == "" -> list.reverse(acc)
     [] -> parse_inline([], "", [Text(text), ..acc])
-    ["[", ..rest] -> {
+
+    // An "[" marks the possible beginning of a link, we try to parse the rest
+    // of the chars as such. If it turns out that it actually isn't a part of a
+    // link, it is treated as normal text.
+    ["[", ..rest] ->
       case parse_link(rest) {
         None -> parse_inline(rest, text <> "[", acc)
         Some(#(link, in)) -> parse_inline(in, "", [link, Text(text), ..acc])
       }
-    }
+
+    // Any ascii punctuation character preceded by a backslash is escaped.
+    ["\\", c, ..rest] ->
+      case is_ascii_punctuation_character(c) {
+        True -> parse_inline(rest, text <> c, acc)
+        False -> parse_inline(rest, text <> "\\" <> c, acc)
+      }
+
+    // An open delimiter that is not forced by being preceded by a "{".
+    // [tag:parse-inline] We try to parse an inline element by looking for the
+    // corresponding closing delimiter.
+    // If we cannot find one then the delimiter is treated as simple text.
+    ["^" as delimiter, ..rest]
+    | ["~" as delimiter, ..rest]
+    | ["_" as delimiter, ..rest]
+    | ["*" as delimiter, ..rest] ->
+      case parse_delimited_inline(delimiter, rest, NotForced) {
+        None -> parse_inline(rest, text <> delimiter, acc)
+        Some(#(inline, in)) -> parse_inline(in, "", [inline, Text(text), ..acc])
+      }
+
+    // An open delimiter that is forced to be treated as such by being preceded
+    // by a "{".
+    // It works the same as the [ref:parse-inline] case but it will look for a
+    // corresponding _forced_ closing delimiter.
+    ["{", "^" as delimiter, ..rest]
+    | ["{", "~" as delimiter, ..rest]
+    | ["{", "_" as delimiter, ..rest]
+    | ["{", "*" as delimiter, ..rest]
+    | // Insert, Delete and Highlight can only be forced
+    ["{", "+" as delimiter, ..rest]
+    | ["{", "-" as delimiter, ..rest]
+    | ["{", "=" as delimiter, ..rest] ->
+      case parse_delimited_inline(delimiter, rest, Forced) {
+        None -> parse_inline(rest, text <> "{" <> delimiter, acc)
+        Some(#(inline, in)) -> parse_inline(in, "", [inline, Text(text), ..acc])
+      }
+
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
   }
 }
@@ -442,6 +490,194 @@ fn take_link_chars_destination(
   }
 }
 
+/// Turns a delimiter into the builder for the corresponding inline element.
+/// 
+fn delimiter_to_builder(delimiter: String) -> Option(fn(List(Inline)) -> Inline) {
+  case delimiter {
+    "^" -> Some(Superscript)
+    "~" -> Some(Subscript)
+    "_" -> Some(Emphasis)
+    "*" -> Some(Strong)
+    "+" -> Some(Insert)
+    "-" -> Some(Delete)
+    "=" -> Some(Highlight)
+    _ -> None
+  }
+}
+
+fn starts_with_whitespace(chars: Chars) -> Bool {
+  case list.first(chars) {
+    Ok(c) -> is_whitespace(c)
+    Error(_) -> False
+  }
+}
+
+fn is_whitespace(string: String) -> Bool {
+  case string {
+    " " | "\n" | "\r" | "\t" -> True
+    _ -> False
+  }
+}
+
+fn is_ascii_punctuation_character(string: String) -> Bool {
+  case string {
+    "!"
+    | "\""
+    | "#"
+    | "$"
+    | "%"
+    | "&"
+    | "'"
+    | "("
+    | ")"
+    | "*"
+    | "+"
+    | ","
+    | "-"
+    | "."
+    | "/"
+    | ":"
+    | ";"
+    | "<"
+    | "="
+    | ">"
+    | "?"
+    | "@"
+    | "["
+    | "\\"
+    | "]"
+    | "^"
+    | "_"
+    | "`"
+    | "{"
+    | "|"
+    | "}"
+    | "~" -> True
+    _ -> False
+  }
+}
+
+type DelimiterMode {
+  /// The mode of normal delimiters used to define inline elements:
+  /// 
+  /// ```
+  /// _foo_ bar *baz*
+  /// ^   ^     ^   ^ these are all standard delimiters
+  /// ```
+  NotForced
+  /// A delimiter that is forced is preceded by an open curly bracked.
+  /// A delimiter can be forced to avoid ambiguities.
+  /// 
+  /// ```
+  /// {_foo_}
+  /// ^^   ^^ these are forced delimiters, preceded (or followed, in case of a
+  ///         closing delimiter) by a bracket
+  /// ```
+  Forced
+}
+
+fn parse_delimited_inline(
+  delimiter: String,
+  in: Chars,
+  mode: DelimiterMode,
+) -> Option(#(Inline, Chars)) {
+  use <- bool.guard(!is_valid_open_delimiter(in, mode), None)
+  use result <- option.then(take_delimited_chars([], in, delimiter, mode))
+  let #(inline_in, in) = result
+  use <- bool.guard(!is_valid_inline_content(inline_in, mode, delimiter), None)
+  use inline_builder <- option.then(delimiter_to_builder(delimiter))
+  let wrapped_inlines = parse_inline(inline_in, "", [])
+  let inline = inline_builder(wrapped_inlines)
+  Some(#(inline, in))
+}
+
+fn is_valid_open_delimiter(rest: Chars, mode: DelimiterMode) -> Bool {
+  case mode {
+    Forced -> True
+    NotForced -> {
+      // An inline delimiter that is not forced must not be immediately
+      // followed by a whitespace character to be valid. For example:
+      //
+      // foo _ bar_
+      //     ^^ is followed by a whitespace so it cannot be treated as the start
+      //        of an inline emphasis.
+      //
+      // At the same time it cannot be followed by a `}` because that would mean
+      // that it actually is a forced closed delimiter (and not an open one).
+      let is_forced_closed_delimiter = list.first(rest) == Ok("}")
+      !is_forced_closed_delimiter && !starts_with_whitespace(rest)
+    }
+  }
+}
+
+fn is_valid_inline_content(
+  inline_in: Chars,
+  mode: DelimiterMode,
+  delimiter: String,
+) -> Bool {
+  case mode {
+    Forced -> True
+    // To be valid the inline element must not be empty (e.g. `__`)
+    // It must not only contain the same enclosing delimiter (e.g. `___`)
+    // and it must not be made of just whitespace (e.g. `_  _`)
+    NotForced ->
+      !list.is_empty(inline_in)
+      && !list.all(inline_in, is_whitespace)
+      && !list.all(inline_in, fn(c) { c == delimiter })
+  }
+}
+
+/// Returns the chars contained in between two matching delimiters and the
+/// remaining chars that were not consumed.
+/// If no matching delimiter can be found returns `None`.
+/// 
+fn take_delimited_chars(
+  inline_in: Chars,
+  in: Chars,
+  delimiter: String,
+  mode: DelimiterMode,
+) -> Option(#(Chars, Chars)) {
+  case in, mode {
+    [], _ -> None
+    [c, ..rest], NotForced | [c, "}", ..rest], Forced if c == delimiter ->
+      case is_valid_closed_delimiter(inline_in, rest, mode) {
+        False -> take_delimited_chars([c, ..inline_in], rest, delimiter, mode)
+        True -> Some(#(list.reverse(inline_in), rest))
+      }
+    [c, ..rest], _ ->
+      take_delimited_chars([c, ..inline_in], rest, delimiter, mode)
+  }
+}
+
+fn is_valid_closed_delimiter(
+  preceding: Chars,
+  rest: Chars,
+  mode: DelimiterMode,
+) -> Bool {
+  case mode {
+    Forced ->
+      // If the delimiter is preceded by an open bracket `{` then that takes
+      // precedence and it is considered an open delimiter instead of a closed
+      // one, despite being followed by a `}`. We're in this situation:
+      //
+      // foo {_ bar{_}
+      //           ^^^ This is considered an open delimiter and not a closed one
+      // 
+      // Also the delimiter cannot be considered a closing one if it is being
+      // escaped.
+      list.first(preceding) != Ok("{") && list.first(preceding) != Ok("\\")
+
+    NotForced ->
+      // To be a valid closing delimiter it must not be preceded by a whitespace
+      // and the delimiter cannot be forced (that is, it must not be preceded
+      // or followed by an open/closed bracket) or escaped.
+      !starts_with_whitespace(preceding)
+      && list.first(rest) != Ok("}")
+      && list.first(preceding) != Ok("{")
+      && list.first(preceding) != Ok("\\")
+  }
+}
+
 fn heading_level(in: Chars, level: Int) -> Option(#(Int, Chars)) {
   case in {
     ["#", ..rest] -> heading_level(rest, level + 1)
@@ -459,7 +695,14 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
     [first, ..rest] ->
       case first {
         Text(text) -> take_inline_text(rest, acc <> text)
-        Link(nested, _) -> {
+        Link(nested, _)
+        | Subscript(nested)
+        | Superscript(nested)
+        | Emphasis(nested)
+        | Strong(nested)
+        | Insert(nested)
+        | Delete(nested)
+        | Highlight(nested) -> {
           let acc = take_inline_text(nested, acc)
           take_inline_text(rest, acc)
         }
@@ -508,7 +751,7 @@ fn container_to_html(html: String, container: Container, refs: Refs) -> String {
     Paragraph(attrs, inlines) -> {
       html
       |> open_tag("p", attrs)
-      |> inlines_to_html(inlines, refs)
+      |> inlines_to_trimmed_html(inlines, refs)
       |> close_tag("p")
     }
 
@@ -529,10 +772,11 @@ fn container_to_html(html: String, container: Container, refs: Refs) -> String {
       let tag = "h" <> int.to_string(level)
       html
       |> open_tag(tag, attrs)
-      |> inlines_to_html(inlines, refs)
+      |> inlines_to_trimmed_html(inlines, refs)
       |> close_tag(tag)
     }
-  } <> "\n"
+  }
+  <> "\n"
 }
 
 fn open_tag(
@@ -548,7 +792,11 @@ fn close_tag(html: String, tag: String) -> String {
   html <> "</" <> tag <> ">"
 }
 
-fn inlines_to_html(html: String, inlines: List(Inline), refs: Refs) -> String {
+fn inlines_to_trimmed_html(
+  html: String,
+  inlines: List(Inline),
+  refs: Refs,
+) -> String {
   case inlines {
     [] -> html
     [inline, ..rest] -> {
@@ -563,11 +811,63 @@ fn inlines_to_html(html: String, inlines: List(Inline), refs: Refs) -> String {
 fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
   case inline {
     Text(text) -> html <> text
-    Link(text, destination) -> {
+    Link(text, destination) ->
       html
       |> open_tag("a", destination_attribute(destination, refs))
       |> inlines_to_html(text, refs)
       |> close_tag("a")
+
+    Subscript(text) ->
+      html
+      |> open_tag("sub", dict.new())
+      |> inlines_to_html(text, refs)
+      |> close_tag("sub")
+
+    Superscript(text) ->
+      html
+      |> open_tag("sup", dict.new())
+      |> inlines_to_html(text, refs)
+      |> close_tag("sup")
+
+    Emphasis(text) ->
+      html
+      |> open_tag("em", dict.new())
+      |> inlines_to_html(text, refs)
+      |> close_tag("em")
+
+    Strong(text) ->
+      html
+      |> open_tag("strong", dict.new())
+      |> inlines_to_html(text, refs)
+      |> close_tag("strong")
+
+    Insert(text) ->
+      html
+      |> open_tag("ins", dict.new())
+      |> inlines_to_html(text, refs)
+      |> close_tag("ins")
+
+    Delete(text) ->
+      html
+      |> open_tag("del", dict.new())
+      |> inlines_to_html(text, refs)
+      |> close_tag("del")
+
+    Highlight(text) ->
+      html
+      |> open_tag("mark", dict.new())
+      |> inlines_to_html(text, refs)
+      |> close_tag("mark")
+  }
+}
+
+fn inlines_to_html(html: String, inlines: List(Inline), refs: Refs) -> String {
+  case inlines {
+    [] -> html
+    [inline, ..rest] -> {
+      html
+      |> inline_to_html(inline, refs)
+      |> inlines_to_html(rest, refs)
     }
   }
 }
