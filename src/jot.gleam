@@ -29,6 +29,7 @@ fn add_attribute(
 
 pub type Container {
   Paragraph(attributes: Dict(String, String), List(Inline))
+  Blockquote(attributes: Dict(String, String), List(Inline))
   Heading(attributes: Dict(String, String), level: Int, content: List(Inline))
   Codeblock(
     attributes: Dict(String, String),
@@ -118,6 +119,11 @@ fn parse_document(
         Some(#(codeblock, in)) ->
           parse_document(in, refs, [codeblock, ..ast], dict.new())
       }
+    }
+
+    [">", " ", ..in] -> {
+      let #(blockquote, in) = parse_blockquote(in, attrs)
+      parse_document(in, refs, [blockquote, ..ast], dict.new())
     }
 
     ["[", ..in2] -> {
@@ -484,6 +490,24 @@ fn take_paragraph_chars(in: Chars, acc: Chars) -> #(Chars, Chars) {
   }
 }
 
+fn take_blockquote_chars(in: Chars, acc: Chars) -> #(Chars, Chars) {
+  case in {
+    [] | ["\n"] -> #(list.reverse(acc), [])
+    ["\n", "\n", ..rest] -> #(list.reverse(acc), rest)
+    ["\n", ">", " ", ..rest] -> take_blockquote_chars(rest, ["\n", ..acc])
+    [c, ..rest] -> take_blockquote_chars(rest, [c, ..acc])
+  }
+}
+
+fn parse_blockquote(
+  in: Chars,
+  attrs: Dict(String, String),
+  ) -> #(Container, Chars) {
+  let #(inline_in, in) = take_blockquote_chars(in, [])
+  let inline = parse_inline(inline_in, "", [])
+  #(Blockquote(attrs, inline), in)
+}
+
 // TODO: document
 pub fn document_to_html(document: Document) -> String {
   containers_to_html(document.content, document.references, "")
@@ -523,6 +547,17 @@ fn container_to_html(html: String, container: Container, refs: Refs) -> String {
       |> string.append(content)
       |> close_tag("code")
       |> close_tag("pre")
+    }
+
+    Blockquote(attrs, inlines) -> {
+      html
+      |> open_tag("blockquote", attrs)
+      |> string.append("\n")
+      |> open_tag("p", attrs)
+      |> inlines_to_html(inlines, refs)
+      |> close_tag("p")
+      |> string.append("\n")
+      |> close_tag("blockquote")
     }
 
     Heading(attrs, level, inlines) -> {
