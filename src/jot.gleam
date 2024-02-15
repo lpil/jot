@@ -254,7 +254,46 @@ fn parse_attributes(
         None -> None
       }
     }
-    _ -> None
+    _ -> {
+      case parse_attribute(in, "") {
+        Some(#(k, v, in)) -> parse_attributes(in, add_attribute(attrs, k, v))
+        None -> None
+      }
+    }
+  }
+}
+
+fn parse_attribute(in: Chars, key: String) -> Option(#(String, String, Chars)) {
+  case in {
+    [] | [" ", ..] -> None
+    ["=", "\"", ..in] -> parse_attribute_quoted_value(in, key, "")
+    ["=", ..in] -> parse_attribute_value(in, key, "")
+    [c, ..in] -> parse_attribute(in, key <> c)
+  }
+}
+
+fn parse_attribute_value(
+  in: Chars,
+  key: String,
+  value: String,
+) -> Option(#(String, String, Chars)) {
+  case in {
+    [] -> None
+    [" ", ..in] -> Some(#(key, value, in))
+    ["}", ..] -> Some(#(key, value, in))
+    [c, ..in] -> parse_attribute_value(in, key, value <> c)
+  }
+}
+
+fn parse_attribute_quoted_value(
+  in: Chars,
+  key: String,
+  value: String,
+) -> Option(#(String, String, Chars)) {
+  case in {
+    [] -> None
+    ["\"", ..in] -> Some(#(key, value, in))
+    [c, ..in] -> parse_attribute_quoted_value(in, key, value <> c)
   }
 }
 
