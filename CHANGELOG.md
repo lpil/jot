@@ -1,6 +1,6 @@
 # Changelog
 
-## Unpublished
+## v0.3.1 - 2024-02-15
 
 - Fixed bug where commas aren't sanitized when creating id attributes.
 
