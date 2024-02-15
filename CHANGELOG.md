@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.0 - 2024-02-15
+
+- Support added for arbitrary block attributes.
+
 ## v0.2.1 - 2023-12-08
 
 - Fixed a bug where paragraphs containing links could lose some of their

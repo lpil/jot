@@ -59,3 +59,28 @@ A paragraph
 <p>{#one#two#three}
 A paragraph</p>
 ```
+
+```
+{key=value}
+A paragraph
+.
+<p key="value">A paragraph</p>
+```
+
+```
+{style="color: red;"}
+A paragraph
+.
+<p style="color: red;">A paragraph</p>
+```
+
+
+If the attribute block can't be parsed as attributes, it will be
+parsed as a regular paragraph:
+
+```
+{#id .class
+.
+<p>{#id .class</p>
+```
+
