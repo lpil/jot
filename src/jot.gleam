@@ -532,7 +532,8 @@ fn container_to_html(html: String, container: Container, refs: Refs) -> String {
       |> inlines_to_html(inlines, refs)
       |> close_tag(tag)
     }
-  } <> "\n"
+  }
+  <> "\n"
 }
 
 fn open_tag(
