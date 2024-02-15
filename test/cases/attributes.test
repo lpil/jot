@@ -84,3 +84,10 @@ parsed as a regular paragraph:
 <p>{#id .class</p>
 ```
 
+```
+{a="aa"}
+{b="bb"}
+Hi
+.
+<p a="aa" b="bb">Hi</p>
+```
