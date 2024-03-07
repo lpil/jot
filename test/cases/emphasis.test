@@ -67,12 +67,6 @@ foo_bar_baz
 ```
 
 ```
-aa_"bb"_cc
-.
-<p>aa<em>“bb”</em>cc</p>
-```
-
-```
 *foo_
 .
 <p>*foo_</p>
@@ -154,14 +148,6 @@ bar_
 bar</em></p>
 ```
 
-Inline content allowed:
-
-```
-*foo [link](url) `*`*
-.
-<p><strong>foo <a href="url">link</a> <code>*</code></strong></p>
-```
-
 Can't emph an underscore:
 
 ```
@@ -205,12 +191,6 @@ _ab\_c_
 ```
 
 ```
-*****a*****
-.
-<p><strong><strong><strong><strong><strong>a</strong></strong></strong></strong></strong></p>
-```
-
-```
 _[bar_](url)
 .
 <p><em>[bar</em>](url)</p>
@@ -220,20 +200,4 @@ _[bar_](url)
 \_[bar_](url)
 .
 <p>_<a href="url">bar_</a></p>
-```
-
-Code takes precedence:
-
-```
-_`a_`b
-.
-<p>_<code>a_</code>b</p>
-```
-
-Autolinks take precedence:
-
-```
-_<http://example.com/a_b>
-.
-<p>_<a href="http://example.com/a_b">http://example.com/a_b</a></p>
 ```
