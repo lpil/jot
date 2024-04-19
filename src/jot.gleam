@@ -431,7 +431,9 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
   case in {
     [] if text == "" -> list.reverse(acc)
     [] -> parse_inline([], "", [Text(text), ..acc])
-    ["_", c, ..rest] if c != " " -> {
+
+    // Emphasis and strong
+    ["_", c, ..rest] if c != " " && c != "\t" && c != "\n" -> {
       let rest = [c, ..rest]
       case parse_emphasis(rest, "_") {
         None -> parse_inline(rest, text <> "_", acc)
@@ -439,7 +441,7 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
           parse_inline(in, "", [Emphasis(inner), Text(text), ..acc])
       }
     }
-    ["*", c, ..rest] if c != " " -> {
+    ["*", c, ..rest] if c != " " && c != "\t" && c != "\n" -> {
       let rest = [c, ..rest]
       case parse_emphasis(rest, "*") {
         None -> parse_inline(rest, text <> "*", acc)
@@ -447,12 +449,15 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
           parse_inline(in, "", [Strong(inner), Text(text), ..acc])
       }
     }
+
+    // Link
     ["[", ..rest] -> {
       case parse_link(rest) {
         None -> parse_inline(rest, text <> "[", acc)
         Some(#(link, in)) -> parse_inline(in, "", [link, Text(text), ..acc])
       }
     }
+
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
   }
 }
@@ -475,8 +480,14 @@ fn take_emphasis_chars(
 ) -> Option(#(Chars, Chars)) {
   case in {
     [] -> None
+
+    ["\t", c, ..in] if c == close ->
+      take_emphasis_chars(in, close, [" ", c, ..acc])
+    ["\n", c, ..in] if c == close ->
+      take_emphasis_chars(in, close, [" ", c, ..acc])
     [" ", c, ..in] if c == close ->
       take_emphasis_chars(in, close, [" ", c, ..acc])
+
     [c, ..in] if c == close -> {
       case list.reverse(acc) {
         [] -> None
