@@ -481,6 +481,7 @@ fn take_emphasis_chars(
   case in {
     [] -> None
 
+    // The close is not a close if it is preceeded by whitespace
     ["\t", c, ..in] if c == close ->
       take_emphasis_chars(in, close, [" ", c, ..acc])
     ["\n", c, ..in] if c == close ->
