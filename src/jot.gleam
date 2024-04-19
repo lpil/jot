@@ -474,8 +474,10 @@ fn take_emphasis_chars(
   case in {
     [] -> None
     [c, ..in] if c == close -> {
-      let acc = list.reverse(acc)
-      Some(#(acc, in))
+      case list.reverse(acc) {
+        [] -> None
+        acc -> Some(#(acc, in))
+      }
     }
     [c, ..rest] -> take_emphasis_chars(rest, close, [c, ..acc])
   }
