@@ -3,8 +3,8 @@
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
-import gleam/string
 import gleam/option.{type Option, None, Some}
+import gleam/string
 
 pub type Document {
   Document(content: List(Container), references: Dict(String, String))
@@ -40,6 +40,8 @@ pub type Container {
 pub type Inline {
   Text(String)
   Link(content: List(Inline), destination: Destination)
+  Emphasis(content: List(Inline))
+  Strong(content: List(Inline))
 }
 
 pub type Destination {
@@ -53,14 +55,23 @@ type Chars =
 type Refs =
   Dict(String, String)
 
-// TODO: document
+/// Convert a string of Djot into a string of HTML.
+///
+/// If you want to have more control over the HTML generated you can use the
+/// `parse` function to convert Djot to a tree of records instead. You can then
+/// traverse this tree and turn it into HTML yourself.
+///
 pub fn to_html(djot: String) -> String {
   djot
   |> parse
   |> document_to_html
 }
 
-// TODO: document
+/// Convert a string of Djot into a tree of records.
+///
+/// This may be useful when you want more control over the HTML to be converted
+/// to, or you wish to convert Djot to some other format.
+///
 pub fn parse(djot: String) -> Document {
   djot
   |> string.replace("\r\n", "\n")
@@ -420,6 +431,20 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
   case in {
     [] if text == "" -> list.reverse(acc)
     [] -> parse_inline([], "", [Text(text), ..acc])
+    ["_", ..rest] -> {
+      case parse_emphasis(rest, "_") {
+        None -> parse_inline(rest, text <> "_", acc)
+        Some(#(inner, in)) ->
+          parse_inline(in, "", [Emphasis(inner), Text(text), ..acc])
+      }
+    }
+    ["*", ..rest] -> {
+      case parse_emphasis(rest, "*") {
+        None -> parse_inline(rest, text <> "*", acc)
+        Some(#(inner, in)) ->
+          parse_inline(in, "", [Strong(inner), Text(text), ..acc])
+      }
+    }
     ["[", ..rest] -> {
       case parse_link(rest) {
         None -> parse_inline(rest, text <> "[", acc)
@@ -427,6 +452,32 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
       }
     }
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
+  }
+}
+
+fn parse_emphasis(in: Chars, close: String) -> Option(#(List(Inline), Chars)) {
+  case take_emphasis_chars(in, close, []) {
+    None -> None
+
+    Some(#(inline_in, in)) -> {
+      let inline = parse_inline(inline_in, "", [])
+      Some(#(inline, in))
+    }
+  }
+}
+
+fn take_emphasis_chars(
+  in: Chars,
+  close: String,
+  acc: Chars,
+) -> Option(#(Chars, Chars)) {
+  case in {
+    [] -> None
+    [c, ..in] if c == close -> {
+      let acc = list.reverse(acc)
+      Some(#(acc, in))
+    }
+    [c, ..rest] -> take_emphasis_chars(rest, close, [c, ..acc])
   }
 }
 
@@ -498,6 +549,8 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
     [first, ..rest] ->
       case first {
         Text(text) -> take_inline_text(rest, acc <> text)
+        Strong(inlines) | Emphasis(inlines) ->
+          take_inline_text(list.append(inlines, rest), acc)
         Link(nested, _) -> {
           let acc = take_inline_text(nested, acc)
           take_inline_text(rest, acc)
@@ -523,7 +576,8 @@ fn take_paragraph_chars(in: Chars, acc: Chars) -> #(Chars, Chars) {
   }
 }
 
-// TODO: document
+/// Convert a document tree into a string of HTML.
+///
 pub fn document_to_html(document: Document) -> String {
   containers_to_html(document.content, document.references, "")
 }
@@ -603,6 +657,18 @@ fn inlines_to_html(html: String, inlines: List(Inline), refs: Refs) -> String {
 fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
   case inline {
     Text(text) -> html <> text
+    Strong(inlines) -> {
+      html
+      |> open_tag("strong", dict.new())
+      |> inlines_to_html(inlines, refs)
+      |> close_tag("strong")
+    }
+    Emphasis(inlines) -> {
+      html
+      |> open_tag("em", dict.new())
+      |> inlines_to_html(inlines, refs)
+      |> close_tag("em")
+    }
     Link(text, destination) -> {
       html
       |> open_tag("a", destination_attribute(destination, refs))

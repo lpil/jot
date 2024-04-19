@@ -1,0 +1,12 @@
+```
+*foo bar*
+.
+<p><strong>foo bar</strong></p>
+```
+
+```
+_foo bar_
+.
+<p><em>foo bar</em></p>
+```
+
