@@ -4,24 +4,6 @@ aa_"bb"_cc
 <p>aa<em>“bb”</em>cc</p>
 ```
 
-A line ending counts as whitespace:
-
-```
-_foo bar
-_
-.
-<p>_foo bar
-_</p>
-```
-
-So does a tab:
-
-```
-_	a_
-.
-<p>_	a_</p>
-```
-
 You can force the second `_` to be an opener
 using the marker `{`.
 
