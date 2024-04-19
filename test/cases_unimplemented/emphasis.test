@@ -1,10 +1,4 @@
 ```
-*foo bar*
-.
-<p><strong>foo bar</strong></p>
-```
-
-```
 a* foo bar*
 .
 <p>a* foo bar*</p>
@@ -30,12 +24,6 @@ Intraword:
 foo*bar*baz
 .
 <p>foo<strong>bar</strong>baz</p>
-```
-
-```
-_foo bar_
-.
-<p><em>foo bar</em></p>
 ```
 
 ```

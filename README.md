@@ -41,3 +41,4 @@ This project is a work in progress. So far it supports:
 - [x] Links (inline and reference)
 - [x] Code blocks
 - [x] Block attributes
+- [x] Emphasis and strong.
