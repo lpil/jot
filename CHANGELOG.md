@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.0 - 2024-04-19
+
+- Support added for `em` and `strong`.
+
 ## v0.3.1 - 2024-02-15
 
 - Fixed bug where commas aren't sanitized when creating id attributes.

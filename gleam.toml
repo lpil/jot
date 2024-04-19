@@ -1,5 +1,5 @@
 name = "jot"
-version = "0.3.1"
+version = "0.4.0"
 gleam = ">= 0.33.0"
 description = "A parser for Djot, a markdown-like language"
 licences = ["Apache-2.0"]
