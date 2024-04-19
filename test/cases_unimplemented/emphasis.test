@@ -18,14 +18,6 @@ Unicode spaces don't block emphasis.
 <p><strong> a </strong></p>
 ```
 
-Intraword:
-
-```
-foo*bar*baz
-.
-<p>foo<strong>bar</strong>baz</p>
-```
-
 ```
 _ foo bar_
 .
@@ -38,38 +30,10 @@ _foo bar _
 <p>_foo bar _</p>
 ```
 
-Unicode spaces don't block emphasis.
-
-```
-_ a _
-.
-<p><em> a </em></p>
-```
-
-Intraword:
-
-```
-foo_bar_baz
-.
-<p>foo<em>bar</em>baz</p>
-```
-
 ```
 aa_"bb"_cc
 .
 <p>aa<em>“bb”</em>cc</p>
-```
-
-```
-*foo_
-.
-<p>*foo_</p>
-```
-
-```
-_foo*
-.
-<p>_foo*</p>
 ```
 
 A line ending counts as whitespace:
@@ -90,15 +54,7 @@ _	a_
 <p>_	a_</p>
 ```
 
-This one is different from commonmark:
-
-```
-_(_foo_)_
-.
-<p><em>(</em>foo<em>)</em></p>
-```
-
-But you can force the second `_` to be an opener
+You can force the second `_` to be an opener
 using the marker `{`.
 
 ```
@@ -115,31 +71,6 @@ can only be closed by a non-marked closer:
 {_ x_ _} _x_}
 .
 <p><em> x_ </em> _x_}</p>
-```
-
-
-```
-_(*foo*)_
-.
-<p><em>(<strong>foo</strong>)</em></p>
-```
-
-Overlapping scopes (first to close wins):
-
-```
-_foo *bar_ baz*
-.
-<p><em>foo *bar</em> baz*</p>
-```
-
-Over line break:
-
-```
-_foo
-bar_
-.
-<p><em>foo
-bar</em></p>
 ```
 
 Inline content allowed:
@@ -164,14 +95,6 @@ Unless you escape it:
 _\__
 .
 <p><em>_</em></p>
-```
-
-No empty emph:
-
-```
-__
-.
-<p>__</p>
 ```
 
 ```
