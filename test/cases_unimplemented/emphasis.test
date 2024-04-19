@@ -1,36 +1,4 @@
 ```
-a* foo bar*
-.
-<p>a* foo bar*</p>
-```
-
-```
-*foo bar *
-.
-<p>*foo bar *</p>
-```
-
-Unicode spaces don't block emphasis.
-
-```
-* a *
-.
-<p><strong> a </strong></p>
-```
-
-```
-_ foo bar_
-.
-<p>_ foo bar_</p>
-```
-
-```
-_foo bar _
-.
-<p>_foo bar _</p>
-```
-
-```
 aa_"bb"_cc
 .
 <p>aa<em>“bb”</em>cc</p>

@@ -431,14 +431,16 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
   case in {
     [] if text == "" -> list.reverse(acc)
     [] -> parse_inline([], "", [Text(text), ..acc])
-    ["_", ..rest] -> {
+    ["_", c, ..rest] if c != " " -> {
+      let rest = [c, ..rest]
       case parse_emphasis(rest, "_") {
         None -> parse_inline(rest, text <> "_", acc)
         Some(#(inner, in)) ->
           parse_inline(in, "", [Emphasis(inner), Text(text), ..acc])
       }
     }
-    ["*", ..rest] -> {
+    ["*", c, ..rest] if c != " " -> {
+      let rest = [c, ..rest]
       case parse_emphasis(rest, "*") {
         None -> parse_inline(rest, text <> "*", acc)
         Some(#(inner, in)) ->
@@ -473,6 +475,8 @@ fn take_emphasis_chars(
 ) -> Option(#(Chars, Chars)) {
   case in {
     [] -> None
+    [" ", c, ..in] if c == close ->
+      take_emphasis_chars(in, close, [" ", c, ..acc])
     [c, ..in] if c == close -> {
       case list.reverse(acc) {
         [] -> None
