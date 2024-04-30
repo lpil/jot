@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.5.0 - 2024-04-30
+
+- Support added for inline code with backticks.
+
 ## v0.4.0 - 2024-04-19
 
 - Support added for `em` and `strong`.
