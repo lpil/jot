@@ -2,19 +2,3 @@
 .
 <p><code>a`a``a```a````a``````a</code></p>
 ```````
-
-```
-` ``a`` `
-.
-<p><code>``a``</code></p>
-```
-
-Implicitly closed by end of paragraph:
-
-```
-` a
-c
-.
-<p><code> a
-c</code></p>
-```

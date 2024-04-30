@@ -472,7 +472,22 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
 fn parse_code(in: Chars, count: Int) -> #(Inline, Chars) {
   case in {
     ["`", ..in] -> parse_code(in, count + 1)
-    _ -> parse_code_content(in, count, "")
+    _ -> {
+      let #(content, in) = parse_code_content(in, count, "")
+
+      // If the string has a single space at the end then a backtick we are
+      // supposed to not include that space. This is so inline code can start
+      // with a backtick.
+      let content = case string.starts_with(content, " `") {
+        True -> string.trim_left(content)
+        False -> content
+      }
+      let content = case string.ends_with(content, "` ") {
+        True -> string.trim_right(content)
+        False -> content
+      }
+      #(Code(content), in)
+    }
   }
 }
 
@@ -480,13 +495,13 @@ fn parse_code_content(
   in: Chars,
   count: Int,
   content: String,
-) -> #(Inline, Chars) {
+) -> #(String, Chars) {
   case in {
-    [] -> #(Code(content), in)
+    [] -> #(content, in)
     ["`", ..in] -> {
-      let #(done, content, in) = parse_code_end(in, count, 1, content)
+      let #(done, content, in) = parse_code_end(in, count, 0, content)
       case done {
-        True -> #(Code(content), in)
+        True -> #(content, in)
         False -> parse_code_content(in, count, content)
       }
     }
@@ -502,9 +517,17 @@ fn parse_code_end(
 ) -> #(Bool, String, Chars) {
   case in {
     [] -> #(True, content, in)
+
+    // If there's another backtick it means that this is not the close of the
+    // inline code element.
+    ["`", "`", ..in] if limit == count -> {
+      #(False, content <> string.repeat("`", limit), in)
+    }
+
     ["`", ..in] if limit == count -> #(True, content, in)
+
     ["`", ..in] -> parse_code_end(in, limit, count + 1, content)
-    [_, ..] -> #(False, content <> string.repeat("`", count), in)
+    [_, ..] -> #(False, content <> string.repeat("`", count + 1), in)
   }
 }
 
