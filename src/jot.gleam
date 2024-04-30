@@ -172,8 +172,8 @@ fn parse_codeblock_start(
     ["\n", ..in] if count >= 3 -> Some(#(None, count, in))
     [_, ..] if count >= 3 -> {
       let in = drop_spaces(in)
-      let #(language, in) = parse_codeblock_language(in, "")
-      Some(#(language, count, in))
+      use #(language, in) <- option.map(parse_codeblock_language(in, ""))
+      #(language, count, in)
     }
     _ -> None
   }
@@ -217,11 +217,14 @@ fn parse_codeblock_end(in: Chars, delim: String, count: Int) -> Option(#(Chars))
 fn parse_codeblock_language(
   in: Chars,
   language: String,
-) -> #(Option(String), Chars) {
+) -> Option(#(Option(String), Chars)) {
   case in {
-    [] -> #(None, in)
-    ["\n", ..in] if language == "" -> #(None, in)
-    ["\n", ..in] -> #(Some(language), in)
+    // A language specifier cannot contain a backtick
+    ["`", ..] -> None
+
+    [] -> Some(#(None, in))
+    ["\n", ..in] if language == "" -> Some(#(None, in))
+    ["\n", ..in] -> Some(#(Some(language), in))
     [c, ..in] -> parse_codeblock_language(in, language <> c)
   }
 }
