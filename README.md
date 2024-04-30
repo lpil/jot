@@ -40,5 +40,6 @@ This project is a work in progress. So far it supports:
 - [x] Paragraphs
 - [x] Links (inline and reference)
 - [x] Code blocks
+- [x] Inline code
 - [x] Block attributes
-- [x] Emphasis and strong.
+- [x] Emphasis and strong

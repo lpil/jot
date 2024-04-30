@@ -42,6 +42,7 @@ pub type Inline {
   Link(content: List(Inline), destination: Destination)
   Emphasis(content: List(Inline))
   Strong(content: List(Inline))
+  Code(content: String)
 }
 
 pub type Destination {
@@ -458,7 +459,52 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
       }
     }
 
+    // Code
+    ["`", ..rest] -> {
+      let #(code, in) = parse_code(rest, 1)
+      parse_inline(in, "", [code, Text(text), ..acc])
+    }
+
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
+  }
+}
+
+fn parse_code(in: Chars, count: Int) -> #(Inline, Chars) {
+  case in {
+    ["`", ..in] -> parse_code(in, count + 1)
+    _ -> parse_code_content(in, count, "")
+  }
+}
+
+fn parse_code_content(
+  in: Chars,
+  count: Int,
+  content: String,
+) -> #(Inline, Chars) {
+  case in {
+    [] -> #(Code(content), in)
+    ["`", ..in] -> {
+      let #(done, content, in) = parse_code_end(in, count, 1, content)
+      case done {
+        True -> #(Code(content), in)
+        False -> parse_code_content(in, count, content)
+      }
+    }
+    [c, ..in] -> parse_code_content(in, count, content <> c)
+  }
+}
+
+fn parse_code_end(
+  in: Chars,
+  limit: Int,
+  count: Int,
+  content: String,
+) -> #(Bool, String, Chars) {
+  case in {
+    [] -> #(True, content, in)
+    ["`", ..in] if limit == count -> #(True, content, in)
+    ["`", ..in] -> parse_code_end(in, limit, count + 1, content)
+    [_, ..] -> #(False, content <> string.repeat("`", count), in)
   }
 }
 
@@ -480,6 +526,9 @@ fn take_emphasis_chars(
 ) -> Option(#(Chars, Chars)) {
   case in {
     [] -> None
+
+    // Inline code overrides emphasis
+    ["`", ..] -> None
 
     // The close is not a close if it is preceeded by whitespace
     ["\t", c, ..in] if c == close ->
@@ -566,7 +615,7 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
     [] -> acc
     [first, ..rest] ->
       case first {
-        Text(text) -> take_inline_text(rest, acc <> text)
+        Text(text) | Code(text) -> take_inline_text(rest, acc <> text)
         Strong(inlines) | Emphasis(inlines) ->
           take_inline_text(list.append(inlines, rest), acc)
         Link(nested, _) -> {
@@ -692,6 +741,12 @@ fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
       |> open_tag("a", destination_attribute(destination, refs))
       |> inlines_to_html(text, refs)
       |> close_tag("a")
+    }
+    Code(content) -> {
+      html
+      |> open_tag("code", dict.new())
+      |> string.append(content)
+      |> close_tag("code")
     }
   }
 }

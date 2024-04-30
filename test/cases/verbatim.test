@@ -1,0 +1,37 @@
+```
+Some `code`
+.
+<p>Some <code>code</code></p>
+```
+
+```
+Some `code
+with a line break`
+.
+<p>Some <code>code
+with a line break</code></p>
+```
+
+```
+Special characters: `*hi*`
+.
+<p>Special characters: <code>*hi*</code></p>
+```
+
+```
+*foo`*`
+.
+<p>*foo<code>*</code></p>
+```
+
+```
+*foo`*
+.
+<p>*foo<code>*</code></p>
+```
+
+```
+``hello``
+.
+<p><code>hello</code></p>
+```
