@@ -502,7 +502,7 @@ fn parse_code_content(
   case in {
     [] -> #(content, in)
     ["`", ..in] -> {
-      let #(done, content, in) = parse_code_end(in, count, 0, content)
+      let #(done, content, in) = parse_code_end(in, count, 1, content)
       case done {
         True -> #(content, in)
         False -> parse_code_content(in, count, content)
@@ -520,17 +520,9 @@ fn parse_code_end(
 ) -> #(Bool, String, Chars) {
   case in {
     [] -> #(True, content, in)
-
-    // If there's another backtick it means that this is not the close of the
-    // inline code element.
-    ["`", "`", ..in] if limit == count -> {
-      #(False, content <> string.repeat("`", limit), in)
-    }
-
-    ["`", ..in] if limit == count -> #(True, content, in)
-
     ["`", ..in] -> parse_code_end(in, limit, count + 1, content)
-    [_, ..] -> #(False, content <> string.repeat("`", count + 1), in)
+    [_, ..] if limit == count -> #(True, content, in)
+    [_, ..] -> #(False, content <> string.repeat("`", count), in)
   }
 }
 
