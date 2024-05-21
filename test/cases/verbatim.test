@@ -13,6 +13,18 @@ with a line break</code></p>
 ```
 
 ```
+Some `code` followed by other text
+.
+<p>Some <code>code</code> followed by other text</p>
+```
+
+```
+Some `code`` with an extra backtick
+.
+<p>Some <code>code`` with an extra backtick</code></p>
+```
+
+```
 Special characters: `*hi*`
 .
 <p>Special characters: <code>*hi*</code></p>
