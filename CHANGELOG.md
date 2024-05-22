@@ -1,5 +1,10 @@
 # Changelog
 
+## Unpublished
+
+- Fixed a bug where inline code endings would only be detected at the end of
+  the document.
+
 ## v0.5.0 - 2024-04-30
 
 - Support added for inline code with backticks.
