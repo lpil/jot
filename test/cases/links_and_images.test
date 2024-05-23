@@ -1,0 +1,52 @@
+```
+[basic _link_][a_b_]
+
+[a_b_]: url
+.
+<p><a href="url">basic <em>link</em></a></p>
+```
+
+```
+![basic _image_][a_b_]
+
+[a_b_]: url
+.
+<p><img alt="basic image" src="url"></p>
+```
+
+```
+![unterminated image
+.
+<p>![unterminated image</p>
+```
+
+```
+![basic _image_](url)
+.
+<p><img alt="basic image" src="url"></p>
+```
+
+```
+[unclosed](hello *a
+b*
+.
+<p>[unclosed](hello <strong>a
+b</strong></p>
+```
+
+Note that soft breaks are ignored, so long URLs
+can be split over multiple lines:
+```
+[closed](hello *a
+b*)
+.
+<p><a href="hello *ab*">closed</a></p>
+```
+
+Here the strong takes precedence over the link because it
+starts first:
+```
+*[closed](hello*)
+.
+<p><strong>[closed](hello</strong>)</p>
+```

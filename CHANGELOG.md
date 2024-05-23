@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Support added for images.
+
 ## v0.6.0 - 2024-05-22
 
 - Fixed a bug where inline code endings would only be detected at the end of
