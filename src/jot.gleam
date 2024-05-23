@@ -40,6 +40,7 @@ pub type Container {
 pub type Inline {
   Text(String)
   Link(content: List(Inline), destination: Destination)
+  Image(content: List(Inline), destination: Destination)
   Emphasis(content: List(Inline))
   Strong(content: List(Inline))
   Code(content: String)
@@ -454,11 +455,17 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
       }
     }
 
-    // Link
+    // Link and image
     ["[", ..rest] -> {
-      case parse_link(rest) {
+      case parse_link(rest, Link) {
         None -> parse_inline(rest, text <> "[", acc)
         Some(#(link, in)) -> parse_inline(in, "", [link, Text(text), ..acc])
+      }
+    }
+    ["!", "[", ..rest] -> {
+      case parse_link(rest, Image) {
+        None -> parse_inline(rest, text <> "![", acc)
+        Some(#(image, in)) -> parse_inline(in, "", [image, Text(text), ..acc])
       }
     }
 
@@ -566,15 +573,17 @@ fn take_emphasis_chars(
   }
 }
 
-fn parse_link(in: Chars) -> Option(#(Inline, Chars)) {
+fn parse_link(
+  in: Chars,
+  to_inline: fn(List(Inline), Destination) -> Inline,
+) -> Option(#(Inline, Chars)) {
   case take_link_chars(in, []) {
     // This wasn't a link, it was just a `[` in the text
     None -> None
 
     Some(#(inline_in, ref, in)) -> {
       let inline = parse_inline(inline_in, "", [])
-      let link = Link(inline, ref)
-      Some(#(link, in))
+      Some(#(to_inline(inline, ref), in))
     }
   }
 }
@@ -636,7 +645,7 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
         Text(text) | Code(text) -> take_inline_text(rest, acc <> text)
         Strong(inlines) | Emphasis(inlines) ->
           take_inline_text(list.append(inlines, rest), acc)
-        Link(nested, _) -> {
+        Link(nested, _) | Image(nested, _) -> {
           let acc = take_inline_text(nested, acc)
           take_inline_text(rest, acc)
         }
@@ -756,9 +765,17 @@ fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
     }
     Link(text, destination) -> {
       html
-      |> open_tag("a", destination_attribute(destination, refs))
+      |> open_tag("a", destination_attribute("href", destination, refs))
       |> inlines_to_html(text, refs)
       |> close_tag("a")
+    }
+    Image(text, destination) -> {
+      html
+      |> open_tag(
+        "img",
+        destination_attribute("src", destination, refs)
+          |> dict.insert("alt", take_inline_text(text, "")),
+      )
     }
     Code(content) -> {
       html
@@ -770,15 +787,16 @@ fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
 }
 
 fn destination_attribute(
+  key: String,
   destination: Destination,
   refs: Refs,
 ) -> Dict(String, String) {
   let dict = dict.new()
   case destination {
-    Url(url) -> dict.insert(dict, "href", url)
+    Url(url) -> dict.insert(dict, key, url)
     Reference(id) ->
       case dict.get(refs, id) {
-        Ok(url) -> dict.insert(dict, "href", url)
+        Ok(url) -> dict.insert(dict, key, url)
         Error(Nil) -> dict
       }
   }
