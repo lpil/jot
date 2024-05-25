@@ -245,6 +245,7 @@ fn parse_ref_value(
 ) -> Option(#(String, String, Chars)) {
   case in {
     [] -> Some(#(id, string.trim(url), []))
+    ["\n", " ", ..in] -> parse_ref_value(drop_spaces(in), id, url)
     ["\n", ..in] -> Some(#(id, string.trim(url), in))
     [c, ..in] -> parse_ref_value(in, id, url <> c)
   }
