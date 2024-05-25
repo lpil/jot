@@ -39,7 +39,8 @@ This project is a work in progress. So far it supports:
 - [x] Headings
 - [x] Paragraphs
 - [x] Links (inline and reference)
+- [x] Images
 - [x] Code blocks
 - [x] Inline code
-- [x] Block attributes
 - [x] Emphasis and strong
+- [x] Block attributes
