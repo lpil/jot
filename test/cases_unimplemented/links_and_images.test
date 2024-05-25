@@ -1,45 +1,3 @@
-```
-[link][a and
-b]
-
-[a and b]: url
-.
-<p><a href="url">link</a></p>
-```
-
-If the reference isn't found, we get an empty link.
-
-```
-[link][a and
-b]
-.
-<p><a>link</a></p>
-```
-
-Reference definitions can't have line breaks in the key:
-
-```
-[link][a and
-b]
-
-[a and
-b]: url
-.
-<p><a>link</a></p>
-<p>[a and
-b]: url</p>
-```
-
-No case normalization is done on reference definitions:
-
-```
-[Link][]
-
-[link]: /url
-.
-<p><a>Link</a></p>
-```
-
 Attributes on reference definitions get transferred to
 the link:
 
@@ -61,14 +19,6 @@ Attributes on the link override those on references:
 [ref][]{title=bar}
 .
 <p><a href="/url" title="bar">ref</a></p>
-```
-
-```
-[link _and_ link][]
-
-[link and link]: url
-.
-<p><a href="url">link <em>and</em> link</a></p>
 ```
 
 ```
