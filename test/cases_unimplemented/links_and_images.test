@@ -1,14 +1,6 @@
 ```
 [link][]
 
-[link]: url
-.
-<p><a href="url">link</a></p>
-```
-
-```
-[link][]
-
 [link]:
  url
 .
