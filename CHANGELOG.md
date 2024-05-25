@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.0 - 2024-05-25
 
 - Support added for images.
 - Link text is used as reference label when label is empty.
