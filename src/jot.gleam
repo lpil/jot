@@ -583,6 +583,10 @@ fn parse_link(
 
     Some(#(inline_in, ref, in)) -> {
       let inline = parse_inline(inline_in, "", [])
+      let ref = case ref {
+        Reference("") -> Reference(take_inline_text(inline, ""))
+        ref -> ref
+      }
       Some(#(to_inline(inline, ref), in))
     }
   }

@@ -21,6 +21,14 @@
 ```
 
 ```
+[link][]
+
+[link]: url
+.
+<p><a href="url">link</a></p>
+```
+
+```
 ![basic _image_](url)
 .
 <p><img alt="basic image" src="url"></p>
