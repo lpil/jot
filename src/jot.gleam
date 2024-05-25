@@ -233,7 +233,7 @@ fn parse_codeblock_language(
 fn parse_ref_def(in: Chars, id: String) -> Option(#(String, String, Chars)) {
   case in {
     ["]", ":", ..in] -> parse_ref_value(in, id, "")
-    [] | ["]", ..] -> None
+    [] | ["]", ..] | ["\n", ..] -> None
     [c, ..in] -> parse_ref_def(in, id <> c)
   }
 }
@@ -625,7 +625,10 @@ fn take_link_chars_destination(
     [")", ..in] if is_url -> Some(#(inline_in, Url(acc), in))
     ["]", ..in] if !is_url -> Some(#(inline_in, Reference(acc), in))
 
-    ["\n", ..rest] -> take_link_chars_destination(rest, is_url, inline_in, acc)
+    ["\n", ..rest] if is_url ->
+      take_link_chars_destination(rest, is_url, inline_in, acc)
+    ["\n", ..rest] if !is_url ->
+      take_link_chars_destination(rest, is_url, inline_in, acc <> " ")
     [c, ..rest] ->
       take_link_chars_destination(rest, is_url, inline_in, acc <> c)
   }

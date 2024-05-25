@@ -4,6 +4,7 @@
 
 - Support added for images.
 - Link text is used as reference label when label is empty.
+- Line breaks in links are parsed in accordance with the spec.
 
 ## v0.6.0 - 2024-05-22
 
