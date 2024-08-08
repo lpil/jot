@@ -1,6 +1,6 @@
 name = "jot"
-version = "1.0.0"
-gleam = ">= 0.33.0"
+version = "1.0.1"
+gleam = ">= 0.39.0"
 description = "A parser for Djot, a markdown-like language"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "lpil", repo = "jot" }
@@ -10,7 +10,7 @@ links = [
 ]
 
 [dependencies]
-gleam_stdlib = "~> 0.33"
+gleam_stdlib = "~> 0.39"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"

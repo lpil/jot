@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.1 - 2024-08-14
+
+- Updated Gleam stdlib and fixed deprecation warning.
+
 ## v1.0.0 - 2024-05-25
 
 - Support added for images.
