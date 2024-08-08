@@ -17,7 +17,7 @@ fn add_attribute(
 ) -> Dict(String, String) {
   case key {
     "class" ->
-      dict.update(attributes, key, fn(previous) {
+      dict.upsert(attributes, key, fn(previous) {
         case previous {
           None -> value
           Some(previous) -> previous <> " " <> value
