@@ -1,0 +1,9 @@
+An escaped newline is a hard break:
+
+```
+ab\
+c
+.
+<p>ab<br>
+c</p>
+```

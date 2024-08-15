@@ -14,16 +14,6 @@ Non-ASCII punctuation characters can't be escaped:
 <p>\a\«</p>
 ```
 
-An escaped newline is a hard break:
-
-```
-ab\
-c
-.
-<p>ab<br>
-c</p>
-```
-
 There can be spaces and tabs between the backslash and the newline:
 
 ```
