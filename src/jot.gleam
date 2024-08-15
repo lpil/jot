@@ -1,6 +1,5 @@
 // TODO: collapse adjacent text nodes
 
-import gleam/io
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
