@@ -1,5 +1,6 @@
 // TODO: collapse adjacent text nodes
 
+import gleam/io
 import gleam/dict.{type Dict}
 import gleam/int
 import gleam/list
@@ -38,6 +39,7 @@ pub type Container {
 }
 
 pub type Inline {
+  Linebreak
   Text(String)
   Link(content: List(Inline), destination: Destination)
   Image(content: List(Inline), destination: Destination)
@@ -438,6 +440,12 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
     [] if text == "" -> list.reverse(acc)
     [] -> parse_inline([], "", [Text(text), ..acc])
 
+    // Hard Linebreak
+    ["\\", "\n", ..rest] -> {
+      let aft = parse_inline(rest, "", acc)
+      list.append([Text(text), Linebreak], aft)
+    }
+
     // Emphasis and strong
     ["_", c, ..rest] if c != " " && c != "\t" && c != "\n" -> {
       let rest = [c, ..rest]
@@ -657,6 +665,9 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
           let acc = take_inline_text(nested, acc)
           take_inline_text(rest, acc)
         }
+        Linebreak -> {
+          take_inline_text(rest, acc)
+        }
       }
   }
 }
@@ -758,7 +769,14 @@ fn inlines_to_html(html: String, inlines: List(Inline), refs: Refs) -> String {
 
 fn inline_to_html(html: String, inline: Inline, refs: Refs) -> String {
   case inline {
-    Text(text) -> html <> text
+    Linebreak -> {
+      html
+      |> open_tag("br", dict.new())
+      |> string.append("\n")
+    }
+    Text(text) -> {
+      html <> text
+    }
     Strong(inlines) -> {
       html
       |> open_tag("strong", dict.new())

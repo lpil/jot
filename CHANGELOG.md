@@ -3,6 +3,7 @@
 ## v1.0.1 - 2024-08-14
 
 - Updated Gleam stdlib and fixed deprecation warning.
+- Add Support for hard line breaks via `\\n`.
 
 ## v1.0.0 - 2024-05-25
 
