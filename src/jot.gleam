@@ -439,10 +439,33 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
     [] if text == "" -> list.reverse(acc)
     [] -> parse_inline([], "", [Text(text), ..acc])
 
-    // Hard Linebreak
-    ["\\", "\n", ..rest] -> {
+    // Escapes
+    ["\\", c, ..rest] -> {
       let aft = parse_inline(rest, "", acc)
-      list.append([Text(text), Linebreak], aft)
+      case c {
+        "\n" -> {
+          list.append([Text(text), Linebreak], aft)
+        }
+        " " -> {
+          parse_inline(rest, text <> "&nbsp;", acc)
+        }
+        "`" -> {
+          parse_inline(rest, text <> "`", acc)
+        }
+        "*" -> {
+          parse_inline(rest, text <> "*", acc)
+        }
+        "_" -> {
+          parse_inline(rest, text <> "_", acc)
+        }
+        "[" -> {
+          parse_inline(rest, text <> "[", acc)
+        }
+        "#" -> {
+          parse_inline(rest, text <> "#", acc)
+        }
+        _ -> parse_inline(list.append([c], rest), text <> "\\", acc)
+      }
     }
 
     // Emphasis and strong
