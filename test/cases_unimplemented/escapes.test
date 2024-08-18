@@ -1,19 +1,3 @@
-ASCII punctuation characters can be escaped:
-
-```
-\`\*\_\[\#
-.
-<p>`*_[#</p>
-```
-
-Non-ASCII punctuation characters can't be escaped:
-
-```
-\a\«
-.
-<p>\a\«</p>
-```
-
 There can be spaces and tabs between the backslash and the newline:
 
 ```
@@ -32,12 +16,4 @@ c
 .
 <p>ab<br>
 c</p>
-```
-
-An escaped space is a non-breaking space:
-
-```
-a\ b
-.
-<p>a&nbsp;b</p>
 ```
