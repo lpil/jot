@@ -449,20 +449,39 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
         " " -> {
           parse_inline(rest, text <> "&nbsp;", acc)
         }
-        "`" -> {
-          parse_inline(rest, text <> "`", acc)
-        }
-        "*" -> {
-          parse_inline(rest, text <> "*", acc)
-        }
-        "_" -> {
-          parse_inline(rest, text <> "_", acc)
-        }
-        "[" -> {
-          parse_inline(rest, text <> "[", acc)
-        }
-        "#" -> {
-          parse_inline(rest, text <> "#", acc)
+        "!"
+        | "\""
+        | "#"
+        | "$"
+        | "%"
+        | "&"
+        | "'"
+        | "("
+        | ")"
+        | "*"
+        | "+"
+        | ","
+        | "-"
+        | "."
+        | "/"
+        | ":"
+        | ";"
+        | "<"
+        | "="
+        | ">"
+        | "?"
+        | "@"
+        | "["
+        | "\\"
+        | "]"
+        | "^"
+        | "_"
+        | "`"
+        | "{"
+        | "|"
+        | "}"
+        | "~" -> {
+          parse_inline(rest, text <> c, acc)
         }
         _ -> parse_inline(list.append([c], rest), text <> "\\", acc)
       }
