@@ -44,3 +44,4 @@ This project is a work in progress. So far it supports:
 - [x] Inline code
 - [x] Emphasis and strong
 - [x] Block attributes
+- [x] Manual line breaks
