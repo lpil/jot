@@ -31,3 +31,11 @@ a\ b
 .
 <p>a&nbsp;b</p>
 ```
+
+```
+The `code` is\
+on multiple lines.
+.
+<p>The <code>code</code> is<br>
+on multiple lines.</p>
+```
