@@ -441,10 +441,9 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
 
     // Escapes
     ["\\", c, ..rest] -> {
-      let aft = parse_inline(rest, "", acc)
       case c {
         "\n" -> {
-          list.append([Text(text), Linebreak], aft)
+          parse_inline(rest, "", [Linebreak, Text(text), ..acc])
         }
         " " -> {
           parse_inline(rest, text <> "&nbsp;", acc)
