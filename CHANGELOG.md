@@ -1,5 +1,8 @@
 # Changelog
 
+## v1.0.2 - 2024-08-25
+- Support added for div blocks.
+
 ## v1.0.1 - 2024-08-19
 
 - Add Support for hard line breaks via `\\n`.
