@@ -1,0 +1,39 @@
+A fenced div cannot interrupt a paragraph, without
+an intervening blank line.
+
+```
+Paragraph text
+::::
+Hi
+::::
+.
+<p>Paragraph text
+::::
+Hi
+::::</p>
+```
+
+A fenced div need not have attributes or a class name.
+
+```
+::::
+Hi
+::::
+.
+<div>
+<p>Hi</p>
+</div>
+```
+
+The closing fence must be at least as long as the opening fence.
+
+```
+::::::::: foo
+Hi
+::::
+.
+<div class="foo">
+<p>Hi
+::::</p>
+</div>
+```

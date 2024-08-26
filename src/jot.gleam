@@ -35,6 +35,7 @@ pub type Container {
     language: Option(String),
     content: String,
   )
+  Div(attributes: Dict(String, String), class: Option(String), List(Container))
 }
 
 pub type Inline {
@@ -147,10 +148,74 @@ fn parse_document(
       }
     }
 
+    [":", ..in] -> {
+      case parse_div(in, attrs) {
+        None -> {
+          let #(paragrah, in) = parse_paragraph(in, attrs)
+          parse_document(in, refs, [paragrah, ..ast], dict.new())
+        }
+        Some(#(div, in)) -> {
+          parse_document(in, refs, [div, ..ast], dict.new())
+        }
+      }
+    }
+
     _ -> {
       let #(paragraph, in) = parse_paragraph(in, attrs)
       parse_document(in, refs, [paragraph, ..ast], dict.new())
     }
+  }
+}
+
+fn parse_div(
+  in: Chars,
+  attrs: Dict(String, String)
+) -> Option(#(Container, Chars)) {
+  use #(class, count, in) <- option.then(parse_div_start(in, 1))
+  let #(content, in) = parse_div_content(in, count, "")
+  let d = parse(content)
+  Some(#(Div(attrs, class, d.content), in))
+}
+
+fn parse_div_start(
+  in: Chars,
+  count: Int,
+) -> Option(#(Option(String), Int, Chars)) {
+  case in {
+    [c, ..in] if c == ":" -> parse_div_start(in, count + 1)
+    ["\n", ..in] if count >= 3 -> Some(#(None, count, in))
+    [_, ..] if count >= 3 -> {
+      let in = drop_spaces(in)
+      use #(class, in) <- option.map(parse_codeblock_language(in, ""))
+      #(class, count, in)
+    }
+    _ -> None
+  }
+}
+
+fn parse_div_content(
+  in: Chars,
+  count: Int,
+  acc: String,
+) -> #(String, Chars) {
+  case parse_div_end(in, count) {
+    None -> {
+      let #(acc, in) = slurp_verbatim_line(in, acc)
+      parse_div_content(in, count, acc) 
+    }
+    Some(#(in)) -> #(acc, in)
+  }
+}
+
+fn parse_div_end(in: Chars, count: Int) -> Option(#(Chars)) {
+  case in {
+    ["\n", ..in] if count == 0 -> Some(#(in))
+    _ if count == 0 -> Some(#(in))
+
+    [c, ..in] if c == ":" -> parse_div_end(in, count - 1)
+
+    [] -> Some(#(in))
+    _ -> None
   }
 }
 
@@ -778,6 +843,20 @@ fn container_to_html(html: String, container: Container, refs: Refs) -> String {
       |> open_tag(tag, attrs)
       |> inlines_to_html(inlines, refs)
       |> close_tag(tag)
+    }
+
+    Div(attrs, class, blocks) -> {
+      let div_html = containers_to_html(blocks, refs, "")
+
+      let div_attrs = case class {
+        Some(class) -> add_attribute(attrs, "class", class)
+        None -> attrs
+      }
+
+      html
+      |> open_tag("div", div_attrs)
+      |> string.append("\n" <> div_html)
+      |> close_tag("div")
     }
   }
   <> "\n"
