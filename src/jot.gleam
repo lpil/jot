@@ -169,7 +169,7 @@ fn parse_document(
 
 fn parse_div(
   in: Chars,
-  attrs: Dict(String, String)
+  attrs: Dict(String, String),
 ) -> Option(#(Container, Chars)) {
   use #(class, count, in) <- option.then(parse_div_start(in, 1))
   let #(content, in) = parse_div_content(in, count, "")
@@ -193,15 +193,11 @@ fn parse_div_start(
   }
 }
 
-fn parse_div_content(
-  in: Chars,
-  count: Int,
-  acc: String,
-) -> #(String, Chars) {
+fn parse_div_content(in: Chars, count: Int, acc: String) -> #(String, Chars) {
   case parse_div_end(in, count) {
     None -> {
       let #(acc, in) = slurp_verbatim_line(in, acc)
-      parse_div_content(in, count, acc) 
+      parse_div_content(in, count, acc)
     }
     Some(#(in)) -> #(acc, in)
   }
