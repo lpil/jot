@@ -550,6 +550,7 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
       parse_inline(in, "", [code, Text(text), ..acc])
     }
 
+    ["\n", ..rest] -> drop_spaces(rest) |> parse_inline(text <> "\n", acc)
     [c, ..rest] -> parse_inline(rest, text <> c, acc)
   }
 }
