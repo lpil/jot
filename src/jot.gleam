@@ -28,6 +28,7 @@ fn add_attribute(
 }
 
 pub type Container {
+  ThematicBreak
   Paragraph(attributes: Dict(String, String), List(Inline))
   Heading(attributes: Dict(String, String), level: Int, content: List(Inline))
   Codeblock(
@@ -147,10 +148,35 @@ fn parse_document(
       }
     }
 
+    ["-", ..in2] | ["*", ..in2] -> {
+      case parse_thematic_break(1, in2) {
+        None -> {
+          let #(paragraph, in) = parse_paragraph(in, attrs)
+          parse_document(in, refs, [paragraph, ..ast], dict.new())
+        }
+        Some(#(thematic_break, in)) -> {
+          parse_document(in, refs, [thematic_break, ..ast], dict.new())
+        }
+      }
+    }
+
     _ -> {
       let #(paragraph, in) = parse_paragraph(in, attrs)
       parse_document(in, refs, [paragraph, ..ast], dict.new())
     }
+  }
+}
+
+fn parse_thematic_break(count: Int, in: Chars) -> Option(#(Container, Chars)) {
+  case in {
+    [] | ["\n", ..] ->
+      case count >= 3 {
+        True -> Some(#(ThematicBreak, in))
+        False -> None
+      }
+    [" ", ..rest] | ["\t", ..rest] -> parse_thematic_break(count, rest)
+    ["-", ..rest] | ["*", ..rest] -> parse_thematic_break(count + 1, rest)
+    _ -> None
   }
 }
 
@@ -751,6 +777,8 @@ fn containers_to_html(
 
 fn container_to_html(html: String, container: Container, refs: Refs) -> String {
   case container {
+    ThematicBreak -> html <> "<hr>"
+
     Paragraph(attrs, inlines) -> {
       html
       |> open_tag("p", attrs)
