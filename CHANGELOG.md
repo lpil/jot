@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.3 - 2024-10-25
+
+- Add support for thematic breaks.
+- Fix bug where inline elements had leading whitespace.
+
 ## v1.0.2 - 2024-08-26
 
 - Fixed a bug in parsing inline line breaks.
