@@ -967,14 +967,11 @@ pub fn document_to_html(document: Document) -> String {
         GeneratedHtml("", []),
         fn(html) {
           html
-          |> open_tag(
-            "a",
-            dict.from_list([
-              #("href", "#fnref" <> footnote_number),
-              #("role", "doc-backlink"),
-            ]),
-          )
-          |> append_to_html("↩︎︎")
+          |> open_tag_ordered_attributes("a", [
+            #("href", "#fnref" <> footnote_number),
+            #("role", "doc-backlink"),
+          ])
+          |> append_to_html("↩︎")
           |> close_tag("a")
         },
       ).html
@@ -1115,6 +1112,20 @@ fn open_tag(
   )
 }
 
+// Some of the tests require a specific order of attributes for them to pass (unlike most which are alphabetical)
+// This function allows you to provide a specific order, which open_tag cannot guarantee as dict.Dict has no set order.
+fn open_tag_ordered_attributes(
+  initial_html: GeneratedHtml,
+  tag: String,
+  attributes: List(#(String, String)),
+) -> GeneratedHtml {
+  let html = initial_html.html <> "<" <> tag
+  GeneratedHtml(
+    ..initial_html,
+    html: ordered_attributes_to_html(attributes, html) <> ">",
+  )
+}
+
 fn close_tag(initial_html: GeneratedHtml, tag: String) -> GeneratedHtml {
   GeneratedHtml(..initial_html, html: initial_html.html <> "</" <> tag <> ">")
 }
@@ -1190,16 +1201,15 @@ fn inline_to_html(
           reference,
           html.used_footnotes,
         )
-      let footnote_attrs =
-        dict.from_list([
-          #("id", "fnref" <> footnote_number),
-          #("href", "#fn" <> footnote_number),
-          #("role", "doc-noteref"),
-        ])
+      let footnote_attrs = [
+        #("id", "fnref" <> footnote_number),
+        #("href", "#fn" <> footnote_number),
+        #("role", "doc-noteref"),
+      ]
 
       let updated_html =
         html
-        |> open_tag("a", footnote_attrs)
+        |> open_tag_ordered_attributes("a", footnote_attrs)
         |> append_to_html("<sup>" <> footnote_number <> "</sup>")
         |> close_tag("a")
 
@@ -1256,7 +1266,14 @@ fn attributes_to_html(html: String, attributes: Dict(String, String)) -> String 
   attributes
   |> dict.to_list
   |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
-  |> list.fold(html, fn(html, pair) {
+  |> ordered_attributes_to_html(html)
+}
+
+fn ordered_attributes_to_html(
+  attributes: List(#(String, String)),
+  html: String,
+) -> String {
+  list.fold(attributes, html, fn(html, pair) {
     html <> " " <> pair.0 <> "=\"" <> pair.1 <> "\""
   })
 }
