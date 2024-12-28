@@ -958,6 +958,16 @@ pub fn document_to_html(document: Document) -> String {
     |> open_tag("ol", dict.new())
     |> append_to_html("\n")
 
+  let add_link = fn(html, footnote_number) {
+    html
+    |> open_tag_ordered_attributes("a", [
+      #("href", "#fnref" <> footnote_number),
+      #("role", "doc-backlink"),
+    ])
+    |> append_to_html("↩︎")
+    |> close_tag("a")
+  }
+
   let footnote_to_html = fn(footnote: #(Int, String), footnote_number: String) {
     dict.get(document.footnotes, footnote.1)
     |> result.map(fn(footnote) {
@@ -965,18 +975,15 @@ pub fn document_to_html(document: Document) -> String {
         footnote,
         Refs(document.references, document.footnotes),
         GeneratedHtml("", []),
-        fn(html) {
-          html
-          |> open_tag_ordered_attributes("a", [
-            #("href", "#fnref" <> footnote_number),
-            #("role", "doc-backlink"),
-          ])
-          |> append_to_html("↩︎")
-          |> close_tag("a")
-        },
-      ).html
+        add_link(_, footnote_number),
+      )
     })
-    |> result.unwrap("")
+    |> result.lazy_unwrap(fn() {
+      GeneratedHtml("", [])
+      |> open_tag_ordered_attributes("p", [])
+      |> add_link(footnote_number)
+      |> close_tag("p")
+    })
   }
 
   let html_with_footnotes =
@@ -990,7 +997,7 @@ pub fn document_to_html(document: Document) -> String {
         html
         |> open_tag("li", dict.from_list([#("id", "fn" <> footnote_number)]))
         |> append_to_html("\n")
-        |> append_to_html(footnote_html)
+        |> append_to_html(footnote_html.html)
         |> append_to_html("\n")
         |> close_tag("li")
         |> append_to_html("\n")
