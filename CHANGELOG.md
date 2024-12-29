@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add support for footnotes.
+
 ## v1.1.0 - 2024-10-25
 
 - Add support for thematic breaks.
