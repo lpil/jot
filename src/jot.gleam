@@ -528,7 +528,7 @@ fn parse_heading(
     Some(#(level, in)) -> {
       let in = drop_spaces(in)
       let #(inline_in, in) = take_heading_chars(in, level, [])
-      let inline = parse_inline(inline_in, "", [])
+      let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
       let text = take_inline_text(inline, "")
       let #(refs, attrs) = case id_sanitise(text) {
         "" -> #(refs, attrs)
@@ -545,7 +545,7 @@ fn parse_heading(
         }
       }
       let heading = Heading(attrs, level, inline)
-      #(heading, refs, in)
+      #(heading, refs, list.append(inline_in_remaining, in))
     }
 
     None -> {
@@ -614,9 +614,13 @@ fn take_heading_chars_newline_hash(
   }
 }
 
-fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
+fn parse_inline(
+  in: Chars,
+  text: String,
+  acc: List(Inline),
+) -> #(List(Inline), Chars) {
   case in {
-    [] if text == "" -> list.reverse(acc)
+    [] if text == "" -> #(list.reverse(acc), [])
     [] -> parse_inline([], "", [Text(text), ..acc])
 
     // Escapes
@@ -686,8 +690,20 @@ fn parse_inline(in: Chars, text: String, acc: List(Inline)) -> List(Inline) {
 
     ["[", "^", ..rest] -> {
       case parse_footnote(rest, "^") {
-        None -> parse_inline(rest, text <> "[", acc)
-        Some(#(link, in)) -> parse_inline(in, "", [link, Text(text), ..acc])
+        None -> parse_inline(rest, text <> "[^", acc)
+        // if this is actually a definition instead of a reference, return early
+        // This applies in situations such as the following:
+        // ```
+        // [^footnote]: very long footnote[^another-footnote]
+        // [^another-footnote]: bla bla[^another-footnote]
+        // ```
+        Some(#(_footnote, [":", ..])) if text != "" -> #(
+          list.reverse([Text(text), ..acc]),
+          in,
+        )
+        Some(#(_footnote, [":", ..])) -> #(list.reverse(acc), in)
+        Some(#(footnote, in)) ->
+          parse_inline(in, "", [footnote, Text(text), ..acc])
       }
     }
 
@@ -777,8 +793,8 @@ fn parse_emphasis(in: Chars, close: String) -> Option(#(List(Inline), Chars)) {
     None -> None
 
     Some(#(inline_in, in)) -> {
-      let inline = parse_inline(inline_in, "", [])
-      Some(#(inline, in))
+      let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
+      Some(#(inline, list.append(inline_in_remaining, in)))
     }
   }
 }
@@ -821,12 +837,12 @@ fn parse_link(
     None -> None
 
     Some(#(inline_in, ref, in)) -> {
-      let inline = parse_inline(inline_in, "", [])
+      let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
       let ref = case ref {
         Reference("") -> Reference(take_inline_text(inline, ""))
         ref -> ref
       }
-      Some(#(to_inline(inline, ref), in))
+      Some(#(to_inline(inline, ref), list.append(inline_in_remaining, in)))
     }
   }
 }
@@ -874,7 +890,7 @@ fn take_link_chars_destination(
 
 fn parse_footnote(in: Chars, acc: String) -> Option(#(Inline, Chars)) {
   case in {
-    // This wasn't a link, it was just a `[` in the text
+    // This wasn't a footnote, it was just a `[^` in the text
     [] -> None
 
     ["]", ..rest] -> {
@@ -921,8 +937,8 @@ fn parse_paragraph(
   attrs: Dict(String, String),
 ) -> #(Container, Chars) {
   let #(inline_in, in) = take_paragraph_chars(in, [])
-  let inline = parse_inline(inline_in, "", [])
-  #(Paragraph(attrs, inline), in)
+  let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
+  #(Paragraph(attrs, inline), list.append(inline_in_remaining, in))
 }
 
 fn take_paragraph_chars(in: Chars, acc: Chars) -> #(Chars, Chars) {
@@ -958,50 +974,11 @@ pub fn document_to_html(document: Document) -> String {
     |> open_tag("ol", dict.new())
     |> append_to_html("\n")
 
-  let add_link = fn(html, footnote_number) {
-    html
-    |> open_tag_ordered_attributes("a", [
-      #("href", "#fnref" <> footnote_number),
-      #("role", "doc-backlink"),
-    ])
-    |> append_to_html("↩︎")
-    |> close_tag("a")
-  }
-
-  let footnote_to_html = fn(footnote: #(Int, String), footnote_number: String) {
-    dict.get(document.footnotes, footnote.1)
-    |> result.map(fn(footnote) {
-      containers_to_html_with_last_paragraph(
-        footnote,
-        Refs(document.references, document.footnotes),
-        GeneratedHtml("", []),
-        add_link(_, footnote_number),
-      )
-    })
-    |> result.lazy_unwrap(fn() {
-      GeneratedHtml("", [])
-      |> open_tag_ordered_attributes("p", [])
-      |> add_link(footnote_number)
-      |> close_tag("p")
-    })
-  }
-
   let html_with_footnotes =
-    list.fold(
+    create_footnotes(
+      document,
       list.reverse(footnotes_section_html.used_footnotes),
       footnotes_section_html,
-      fn(html, footnote) {
-        let footnote_number = int.to_string(footnote.0)
-        let footnote_html = footnote_to_html(footnote, footnote_number)
-
-        html
-        |> open_tag("li", dict.from_list([#("id", "fn" <> footnote_number)]))
-        |> append_to_html("\n")
-        |> append_to_html(footnote_html.html)
-        |> append_to_html("\n")
-        |> close_tag("li")
-        |> append_to_html("\n")
-      },
     )
 
   {
@@ -1101,6 +1078,88 @@ fn container_to_html(
     }
   }
   append_to_html(new_html, "\n")
+}
+
+fn create_footnotes(
+  document: Document,
+  used_footnotes: List(#(Int, String)),
+  html_acc: GeneratedHtml,
+) {
+  let footnote_to_html = fn(
+    html: GeneratedHtml,
+    footnote: String,
+    footnote_number: String,
+  ) {
+    dict.get(document.footnotes, footnote)
+    |> result.then(fn(footnote) {
+      // Even if the footnote is empty, we need to still make sure a backlink is generated
+      case list.is_empty(footnote) {
+        True -> Error(Nil)
+        False -> Ok(footnote)
+      }
+    })
+    |> result.map(fn(footnote) {
+      containers_to_html_with_last_paragraph(
+        footnote,
+        Refs(document.references, document.footnotes),
+        html,
+        add_footnote_link(_, footnote_number),
+      )
+    })
+    |> result.lazy_unwrap(fn() {
+      html
+      |> open_tag_ordered_attributes("p", [])
+      |> add_footnote_link(footnote_number)
+      |> close_tag("p")
+    })
+  }
+
+  case used_footnotes {
+    [] -> html_acc
+    [#(footnote_number, footnote), ..other_footnotes] -> {
+      let footnote_number = int.to_string(footnote_number)
+
+      let html =
+        html_acc
+        |> open_tag("li", dict.from_list([#("id", "fn" <> footnote_number)]))
+        |> append_to_html("\n")
+        |> footnote_to_html(footnote, footnote_number)
+        |> append_to_html("\n")
+        |> close_tag("li")
+        |> append_to_html("\n")
+
+      let new_used_footnotes =
+        list.append(get_new_footnotes(html_acc, html, []), other_footnotes)
+      create_footnotes(document, new_used_footnotes, html)
+    }
+  }
+}
+
+fn add_footnote_link(html: GeneratedHtml, footnote_number: String) {
+  html
+  |> open_tag_ordered_attributes("a", [
+    #("href", "#fnref" <> footnote_number),
+    #("role", "doc-backlink"),
+  ])
+  |> append_to_html("↩︎")
+  |> close_tag("a")
+}
+
+fn get_new_footnotes(
+  original_html: GeneratedHtml,
+  new_html: GeneratedHtml,
+  acc: List(#(Int, String)),
+) {
+  case original_html.used_footnotes, new_html.used_footnotes {
+    [original, ..], [new, ..] if original == new -> acc
+    _, [new, ..rest] ->
+      get_new_footnotes(
+        original_html,
+        GeneratedHtml(..new_html, used_footnotes: rest),
+        [new, ..acc],
+      )
+    _, _ -> acc
+  }
 }
 
 fn append_to_html(original_html: GeneratedHtml, str: String) -> GeneratedHtml {
