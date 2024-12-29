@@ -46,3 +46,4 @@ This project is a work in progress. So far it supports:
 - [x] Block attributes
 - [x] Manual line breaks
 - [x] Thematic breaks
+- [x] Footnotes
