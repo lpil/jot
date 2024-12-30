@@ -1,7 +1,7 @@
-import simplifile
 import filepath
 import gleam/list
 import gleam/string
+import simplifile
 
 pub type Example {
   Example(file: String, djot: String, html: String)
