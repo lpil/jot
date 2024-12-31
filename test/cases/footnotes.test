@@ -90,3 +90,25 @@ text[^footnote].
 </ol>
 </section>
 ```
+
+Properly indent codeblock directly following footnote definition
+
+```
+text[^footnote].
+
+[^footnote]: ```
+             code
+             ```
+.
+<p>text<a id="fnref1" href="#fn1" role="doc-noteref"><sup>1</sup></a>.</p>
+<section role="doc-endnotes">
+<hr>
+<ol>
+<li id="fn1">
+<pre><code>code
+</code></pre>
+<p><a href="#fnref1" role="doc-backlink">↩︎</a></p>
+</li>
+</ol>
+</section>
+```

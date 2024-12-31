@@ -402,7 +402,7 @@ fn parse_footnote_def(
 ) -> Option(#(String, List(Container), Refs, Chars)) {
   case in {
     ["]", ":", ..in] -> {
-      let in = drop_spaces(in)
+      let #(in, spaces_count) = count_drop_spaces(in, 0)
       // Because this is the beginning of the block, we don't have to make sure 
       // it is properly indented, so we might be able to skip that process.
       let block_parser = case in {
@@ -416,7 +416,7 @@ fn parse_footnote_def(
             ast,
             attrs,
             required_spaces,
-            indentation: 0,
+            indentation: 4 + string.length(id) + spaces_count,
           )
         }
       }
