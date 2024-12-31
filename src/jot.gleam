@@ -85,10 +85,13 @@ pub fn to_html(djot: String) -> String {
 /// to, or you wish to convert Djot to some other format.
 ///
 pub fn parse(djot: String) -> Document {
-  djot
-  |> string.replace("\r\n", "\n")
-  |> string.to_graphemes
-  |> parse_document(Refs(dict.new(), dict.new()), [], dict.new())
+  let #(ast, Refs(urls, footnotes), _) =
+    djot
+    |> string.replace("\r\n", "\n")
+    |> string.to_graphemes
+    |> parse_document_content(Refs(dict.new(), dict.new()), [], dict.new())
+
+  Document(ast, urls, footnotes)
 }
 
 fn drop_lines(in: Chars) -> Chars {
@@ -115,81 +118,46 @@ fn count_drop_spaces(in: Chars, count: Int) -> #(Chars, Int) {
   }
 }
 
-fn parse_document(
+fn parse_document_content(
   in: Chars,
   refs: Refs,
   ast: List(Container),
   attrs: Dict(String, String),
-) -> Document {
+) -> #(List(Container), Refs, Chars) {
   let in = drop_lines(in)
   let #(in, spaces_count) = count_drop_spaces(in, 0)
 
-  let unknown_handler = fn(in, refs, ast, attrs) {
-    case in {
-      ["[", "^", ..in2] -> {
-        case parse_footnote_def(in2, "^") {
-          None -> {
-            let #(paragraph, in) = parse_paragraph(in, attrs)
-            parse_document(in, refs, [paragraph, ..ast], dict.new())
-          }
-          Some(#(id, footnote, in)) -> {
-            let refs =
-              Refs(..refs, footnotes: dict.insert(refs.footnotes, id, footnote))
-            parse_document(in, refs, ast, dict.new())
-          }
-        }
-      }
-      ["[", ..in2] -> {
-        case parse_ref_def(in2, "") {
-          None -> {
-            let #(paragraph, in) = parse_paragraph(in, attrs)
-            parse_document(in, refs, [paragraph, ..ast], dict.new())
-          }
-          Some(#(id, url, in)) -> {
-            let refs = Refs(..refs, urls: dict.insert(refs.urls, id, url))
-            parse_document(in, refs, ast, dict.new())
-          }
-        }
-      }
-      _ -> {
-        let #(paragraph, in) = parse_paragraph(in, attrs)
-        parse_document(in, refs, [paragraph, ..ast], dict.new())
-      }
-    }
-  }
-
-  parse_block_segment(
-    in,
-    refs,
-    ast,
-    attrs,
-    spaces_count,
-    parse_document,
-    fn(ast, refs, _) {
-      Document(
-        content: list.reverse(ast),
-        references: refs.urls,
-        footnotes: refs.footnotes,
-      )
-    },
-    unknown_handler,
-  )
+  parse_containers(in, refs, ast, attrs, spaces_count, parse_document_content)
 }
 
+/// Parse a block of Djot that ends once the content is no longer indented
+/// to a certain level.
+/// For example:
+///
+/// ```djot
+/// Here's the reference.[^ref]
+///
+/// [^ref]: This footnote is a block with two paragraphs.
+///
+///   This is part of the block because it is indented past the start of `[^ref]`
+///
+/// But this would not be parsed as part of the block because it has no indentation
+/// ```
 fn parse_block(
   in: Chars,
   refs: Refs,
   ast: List(Container),
   attrs: Dict(String, String),
   required_spaces: Int,
-) -> #(List(Container), Chars) {
+) -> #(List(Container), Refs, Chars) {
   let in = drop_lines(in)
   let #(in, spaces_count) = count_drop_spaces(in, 0)
 
   use <- bool.lazy_guard(spaces_count < required_spaces, fn() {
-    #(list.reverse(ast), in)
+    #(list.reverse(ast), refs, in)
   })
-  parse_block_indent_unchecked(
+
+  parse_block_after_indent_checked(
     in,
     refs,
     ast,
@@ -199,7 +167,11 @@ fn parse_block(
   )
 }
 
-fn parse_block_indent_unchecked(
+/// This function allows us to parse the contents of a block after we know
+/// that the *first* container meets indentation requirements, but we want to
+/// ensure that once this container is parsed, future containers meet the
+/// indentation requirements
+fn parse_block_after_indent_checked(
   in: Chars,
   refs: Refs,
   ast: List(Container),
@@ -207,44 +179,28 @@ fn parse_block_indent_unchecked(
   required_spaces required_spaces: Int,
   indentation indentation: Int,
 ) {
-  case in {
-    // if there is a newline at the very beginning of the block, instantly start checking indentation 
-    // to make sure it isn't an empty block
-    ["\n", ..] -> parse_block(in, refs, ast, attrs, required_spaces)
-    _ -> {
-      let unknown_handler = fn(in, refs, ast, attrs) {
-        let #(paragraph, in) = parse_paragraph(in, attrs)
-        parse_block(in, refs, [paragraph, ..ast], dict.new(), required_spaces)
-      }
-
-      parse_block_segment(
-        in,
-        refs,
-        ast,
-        attrs,
-        indentation,
-        fn(in, refs, ast, attrs) {
-          parse_block(in, refs, ast, attrs, required_spaces)
-        },
-        fn(ast, _refs, rest) { #(list.reverse(ast), rest) },
-        unknown_handler,
-      )
-    }
-  }
+  parse_containers(in, refs, ast, attrs, indentation, fn(in, refs, ast, attrs) {
+    parse_block(in, refs, ast, attrs, required_spaces)
+  })
 }
 
-fn parse_block_segment(
+fn parse_containers(
   in: Chars,
   refs: Refs,
   ast: List(Container),
   attrs: Dict(String, String),
   indentation: Int,
-  parser: fn(Chars, Refs, List(Container), Dict(String, String)) -> a,
-  ast_handler: fn(List(Container), Refs, Chars) -> a,
-  unknown_handler: fn(Chars, Refs, List(Container), Dict(String, String)) -> a,
-) -> a {
+  // This function is used when calling parse_containers recursively to control
+  // when to stop and to modify the input after the previous container was parsed.
+  //
+  // For example, when parsing blocks, we pass the `parse_block` function in as
+  // the parser to ensure that each container meets indentation requirements
+  // before we parse it
+  parser: fn(Chars, Refs, List(Container), Dict(String, String)) ->
+    #(List(Container), Refs, Chars),
+) -> #(List(Container), Refs, Chars) {
   case in {
-    [] -> ast_handler(ast, refs, [])
+    [] -> #(list.reverse(ast), refs, [])
     ["{", ..in2] ->
       case parse_attributes(in2, attrs) {
         None -> {
@@ -281,7 +237,38 @@ fn parse_block_segment(
         }
       }
     }
-    _ -> unknown_handler(in, refs, ast, attrs)
+
+    ["[", "^", ..in2] -> {
+      case parse_footnote_def(in2, refs, "^") {
+        None -> {
+          let #(paragraph, in) = parse_paragraph(in, attrs)
+          parser(in, refs, [paragraph, ..ast], dict.new())
+        }
+        Some(#(id, footnote, refs, in)) -> {
+          let refs =
+            Refs(..refs, footnotes: dict.insert(refs.footnotes, id, footnote))
+          parser(in, refs, ast, dict.new())
+        }
+      }
+    }
+
+    ["[", ..in2] -> {
+      case parse_ref_def(in2, "") {
+        None -> {
+          let #(paragraph, in) = parse_paragraph(in, attrs)
+          parser(in, refs, [paragraph, ..ast], dict.new())
+        }
+        Some(#(id, url, in)) -> {
+          let refs = Refs(..refs, urls: dict.insert(refs.urls, id, url))
+          parser(in, refs, ast, dict.new())
+        }
+      }
+    }
+
+    _ -> {
+      let #(paragraph, in) = parse_paragraph(in, attrs)
+      parser(in, refs, [paragraph, ..ast], dict.new())
+    }
   }
 }
 
@@ -410,24 +397,34 @@ fn parse_ref_value(
 
 fn parse_footnote_def(
   in: Chars,
+  refs: Refs,
   id: String,
-) -> Option(#(String, List(Container), Chars)) {
+) -> Option(#(String, List(Container), Refs, Chars)) {
   case in {
     ["]", ":", ..in] -> {
       let in = drop_spaces(in)
-      let #(block, rest) =
-        parse_block_indent_unchecked(
-          in,
-          Refs(dict.new(), dict.new()),
-          [],
-          dict.new(),
-          required_spaces: 1,
-          indentation: 0,
-        )
-      Some(#(id, block, rest))
+      // Because this is the beginning of the block, we don't have to make sure 
+      // it is properly indented, so we might be able to skip that process.
+      let block_parser = case in {
+        // However, if there is a new line directly following the beginning of the block,
+        // we need to check the indentation to be sure that it is not an empty block
+        ["\n", ..] -> parse_block
+        _ -> fn(in, refs, ast, attrs, required_spaces) {
+          parse_block_after_indent_checked(
+            in,
+            refs,
+            ast,
+            attrs,
+            required_spaces,
+            indentation: 0,
+          )
+        }
+      }
+      let #(block, refs, rest) = block_parser(in, refs, [], dict.new(), 1)
+      Some(#(id, block, refs, rest))
     }
     [] | ["]", ..] | ["\n", ..] -> None
-    [c, ..in] -> parse_footnote_def(in, id <> c)
+    [c, ..in] -> parse_footnote_def(in, refs, id <> c)
   }
 }
 
