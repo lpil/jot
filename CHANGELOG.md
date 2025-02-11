@@ -1,6 +1,10 @@
 # Changelog
 
-## v2.0.1 - 2024-01-08
+## v2.0.1 - 2025-02-11
+
+- Updated for latest stdlib.
+
+## v2.0.0 - 2024-01-08
 
 - Add support for footnotes.
 
