@@ -741,11 +741,11 @@ fn parse_code(in: Chars, count: Int) -> #(Inline, Chars) {
       // supposed to not include that space. This is so inline code can start
       // with a backtick.
       let content = case string.starts_with(content, " `") {
-        True -> string.trim_left(content)
+        True -> string.trim_start(content)
         False -> content
       }
       let content = case string.ends_with(content, "` ") {
-        True -> string.trim_right(content)
+        True -> string.trim_end(content)
         False -> content
       }
       #(Code(content), in)
@@ -1206,7 +1206,7 @@ fn inlines_to_html(
         |> inline_to_html(inline, refs)
         |> inlines_to_html(rest, refs)
 
-      GeneratedHtml(..html, html: string.trim_right(html.html))
+      GeneratedHtml(..html, html: string.trim_end(html.html))
     }
   }
 }
