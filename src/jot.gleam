@@ -35,7 +35,7 @@ fn add_attribute(
 
 pub type Container {
   ThematicBreak
-  Paragraph(attributes: Dict(String, String), List(Inline))
+  Paragraph(attributes: Dict(String, String), content: List(Inline))
   Heading(attributes: Dict(String, String), level: Int, content: List(Inline))
   Codeblock(
     attributes: Dict(String, String),
