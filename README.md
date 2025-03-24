@@ -36,14 +36,15 @@ Further documentation can be found at <https://hexdocs.pm/jot>.
 
 This project is a work in progress. So far it supports:
 
-- [x] Headings
-- [x] Paragraphs
-- [x] Links (inline and reference)
-- [x] Images
-- [x] Code blocks
-- [x] Inline code
-- [x] Emphasis and strong
 - [x] Block attributes
-- [x] Manual line breaks
-- [x] Thematic breaks
+- [x] Code blocks
+- [x] Emphasis and strong
 - [x] Footnotes
+- [x] Headings
+- [x] Images
+- [x] Inline code
+- [x] Links (inline and reference)
+- [x] Manual line breaks
+- [x] Paragraphs
+- [x] Raw blocks
+- [x] Thematic breaks

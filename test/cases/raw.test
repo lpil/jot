@@ -1,0 +1,21 @@
+
+Raw block-level content:
+
+````
+``` =html
+<table>
+```
+.
+<table>
+````
+
+Attributes attached to raw content will just be ignored:
+
+````
+{.foo}
+``` =html
+<table>
+```
+.
+<table>
+````

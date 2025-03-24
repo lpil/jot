@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.1.0 - 2025-03-24
+
+- Added support for raw blocks.
+
 ## v2.0.2 - 2025-03-13
 
 - Added missing label on paragraph record.

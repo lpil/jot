@@ -42,6 +42,7 @@ pub type Container {
     language: Option(String),
     content: String,
   )
+  RawBlock(content: String)
 }
 
 pub type Inline {
@@ -294,7 +295,10 @@ fn parse_codeblock(
   use #(language, count, in) <- option.then(parse_codeblock_start(in, delim, 1))
   let #(content, in) =
     parse_codeblock_content(in, delim, count, indentation, "")
-  Some(#(Codeblock(attrs, language, content), in))
+  case language {
+    Some("=html") -> Some(#(RawBlock(string.trim_end(content)), in))
+    _ -> Some(#(Codeblock(attrs, language, content), in))
+  }
 }
 
 fn parse_codeblock_start(
@@ -1073,6 +1077,8 @@ fn container_to_html(
       |> inlines_to_html(inlines, refs)
       |> close_tag(tag)
     }
+
+    RawBlock(content) -> GeneratedHtml(..html, html: html.html <> content)
   }
   append_to_html(new_html, "\n")
 }
