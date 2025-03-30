@@ -1,5 +1,13 @@
 // TODO: collapse adjacent text nodes
 
+// OH NO! IT'S SLOW!
+// OH NO! IT'S SLOW!
+// OH NO! IT'S SLOW!
+// OH NO! IT'S SLOW!
+//
+// TODO: use split_once instead of pop_grapheme
+// TODO: use indexes rather than appending to strings?
+
 import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/int
@@ -61,9 +69,6 @@ pub type Destination {
   Url(String)
 }
 
-type Chars =
-  List(String)
-
 type Refs {
   Refs(urls: Dict(String, String), footnotes: Dict(String, List(Container)))
 }
@@ -89,42 +94,41 @@ pub fn parse(djot: String) -> Document {
   let #(ast, Refs(urls, footnotes), _) =
     djot
     |> string.replace("\r\n", "\n")
-    |> string.to_graphemes
     |> parse_document_content(Refs(dict.new(), dict.new()), [], dict.new())
 
   Document(ast, urls, footnotes)
 }
 
-fn drop_lines(in: Chars) -> Chars {
+fn drop_lines(in: String) -> String {
   case in {
-    [] -> []
-    ["\n", ..rest] -> drop_lines(rest)
-    [c, ..rest] -> [c, ..rest]
+    "" -> ""
+    "\n" <> rest -> drop_lines(rest)
+    other -> other
   }
 }
 
-fn drop_spaces(in: Chars) -> Chars {
+fn drop_spaces(in: String) -> String {
   case in {
-    [] -> []
-    [" ", ..rest] -> drop_spaces(rest)
-    [c, ..rest] -> [c, ..rest]
+    "" -> ""
+    " " <> rest -> drop_spaces(rest)
+    other -> other
   }
 }
 
-fn count_drop_spaces(in: Chars, count: Int) -> #(Chars, Int) {
+fn count_drop_spaces(in: String, count: Int) -> #(String, Int) {
   case in {
-    [] -> #([], count)
-    [" ", ..rest] -> count_drop_spaces(rest, count + 1)
-    [c, ..rest] -> #([c, ..rest], count)
+    "" -> #("", count)
+    " " <> rest -> count_drop_spaces(rest, count + 1)
+    other -> #(other, count)
   }
 }
 
 fn parse_document_content(
-  in: Chars,
+  in: String,
   refs: Refs,
   ast: List(Container),
   attrs: Dict(String, String),
-) -> #(List(Container), Refs, Chars) {
+) -> #(List(Container), Refs, String) {
   let in = drop_lines(in)
   let #(in, spaces_count) = count_drop_spaces(in, 0)
 
@@ -145,12 +149,12 @@ fn parse_document_content(
 /// But this would not be parsed as part of the block because it has no indentation
 /// ```
 fn parse_block(
-  in: Chars,
+  in: String,
   refs: Refs,
   ast: List(Container),
   attrs: Dict(String, String),
   required_spaces: Int,
-) -> #(List(Container), Refs, Chars) {
+) -> #(List(Container), Refs, String) {
   let in = drop_lines(in)
   let #(in, spaces_count) = count_drop_spaces(in, 0)
 
@@ -173,7 +177,7 @@ fn parse_block(
 /// ensure that once this container is parsed, future containers meet the
 /// indentation requirements
 fn parse_block_after_indent_checked(
-  in: Chars,
+  in: String,
   refs: Refs,
   ast: List(Container),
   attrs: Dict(String, String),
@@ -186,7 +190,7 @@ fn parse_block_after_indent_checked(
 }
 
 fn parse_containers(
-  in: Chars,
+  in: String,
   refs: Refs,
   ast: List(Container),
   attrs: Dict(String, String),
@@ -197,12 +201,12 @@ fn parse_containers(
   // For example, when parsing blocks, we pass the `parse_block` function in as
   // the parser to ensure that each container meets indentation requirements
   // before we parse it
-  parser: fn(Chars, Refs, List(Container), Dict(String, String)) ->
-    #(List(Container), Refs, Chars),
-) -> #(List(Container), Refs, Chars) {
+  parser: fn(String, Refs, List(Container), Dict(String, String)) ->
+    #(List(Container), Refs, String),
+) -> #(List(Container), Refs, String) {
   case in {
-    [] -> #(list.reverse(ast), refs, [])
-    ["{", ..in2] ->
+    "" -> #(list.reverse(ast), refs, "")
+    "{" <> in2 ->
       case parse_attributes(in2, attrs) {
         None -> {
           let #(paragraph, in) = parse_paragraph(in, attrs)
@@ -211,12 +215,12 @@ fn parse_containers(
         Some(#(attrs, in)) -> parser(in, refs, ast, attrs)
       }
 
-    ["#", ..in] -> {
+    "#" <> in -> {
       let #(heading, refs, in) = parse_heading(in, refs, attrs)
       parser(in, refs, [heading, ..ast], dict.new())
     }
 
-    ["~" as delim, ..in2] | ["`" as delim, ..in2] -> {
+    "~" as delim <> in2 | "`" as delim <> in2 -> {
       case parse_codeblock(in2, attrs, delim, indentation) {
         None -> {
           let #(paragraph, in) = parse_paragraph(in, attrs)
@@ -227,7 +231,7 @@ fn parse_containers(
       }
     }
 
-    ["-", ..in2] | ["*", ..in2] -> {
+    "-" <> in2 | "*" <> in2 -> {
       case parse_thematic_break(1, in2) {
         None -> {
           let #(paragraph, in) = parse_paragraph(in, attrs)
@@ -239,7 +243,7 @@ fn parse_containers(
       }
     }
 
-    ["[", "^", ..in2] -> {
+    "[^" <> in2 -> {
       case parse_footnote_def(in2, refs, "^") {
         None -> {
           let #(paragraph, in) = parse_paragraph(in, attrs)
@@ -253,7 +257,7 @@ fn parse_containers(
       }
     }
 
-    ["[", ..in2] -> {
+    "[" <> in2 -> {
       case parse_ref_def(in2, "") {
         None -> {
           let #(paragraph, in) = parse_paragraph(in, attrs)
@@ -273,25 +277,21 @@ fn parse_containers(
   }
 }
 
-fn parse_thematic_break(count: Int, in: Chars) -> Option(#(Container, Chars)) {
+fn parse_thematic_break(count: Int, in: String) -> Option(#(Container, String)) {
   case in {
-    [] | ["\n", ..] ->
-      case count >= 3 {
-        True -> Some(#(ThematicBreak, in))
-        False -> None
-      }
-    [" ", ..rest] | ["\t", ..rest] -> parse_thematic_break(count, rest)
-    ["-", ..rest] | ["*", ..rest] -> parse_thematic_break(count + 1, rest)
+    "" | "\n" <> _ if count >= 3 -> Some(#(ThematicBreak, in))
+    " " <> rest | "\t" <> rest -> parse_thematic_break(count, rest)
+    "-" <> rest | "*" <> rest -> parse_thematic_break(count + 1, rest)
     _ -> None
   }
 }
 
 fn parse_codeblock(
-  in: Chars,
+  in: String,
   attrs: Dict(String, String),
   delim: String,
   indentation: Int,
-) -> Option(#(Container, Chars)) {
+) -> Option(#(Container, String)) {
   use #(language, count, in) <- option.then(parse_codeblock_start(in, delim, 1))
   let #(content, in) =
     parse_codeblock_content(in, delim, count, indentation, "")
@@ -302,117 +302,145 @@ fn parse_codeblock(
 }
 
 fn parse_codeblock_start(
-  in: Chars,
+  in: String,
   delim: String,
   count: Int,
-) -> Option(#(Option(String), Int, Chars)) {
+) -> Option(#(Option(String), Int, String)) {
   case in {
-    [c, ..in] if c == delim -> parse_codeblock_start(in, delim, count + 1)
-    ["\n", ..in] if count >= 3 -> Some(#(None, count, in))
-    [_, ..] if count >= 3 -> {
+    "\n" <> in if count >= 3 -> Some(#(None, count, in))
+
+    "" -> None
+    _non_empty if count >= 3 -> {
       let in = drop_spaces(in)
       use #(language, in) <- option.map(parse_codeblock_language(in, ""))
       #(language, count, in)
     }
-    _ -> None
+
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) if c == delim ->
+          parse_codeblock_start(in, delim, count + 1)
+        _ -> None
+      }
   }
 }
 
 fn parse_codeblock_content(
-  in: Chars,
+  in: String,
   delim: String,
   count: Int,
   indentation: Int,
   acc: String,
-) -> #(String, Chars) {
+) -> #(String, String) {
   case parse_codeblock_end(in, delim, count) {
     None -> {
       let #(acc, in) = slurp_verbatim_line(in, indentation, acc)
       parse_codeblock_content(in, delim, count, indentation, acc)
     }
-    Some(#(in)) -> #(acc, in)
+    Some(in) -> #(acc, in)
   }
 }
 
 fn slurp_verbatim_line(
-  in: Chars,
+  in: String,
   indentation: Int,
   acc: String,
-) -> #(String, Chars) {
+) -> #(String, String) {
   case in {
-    [] -> #(acc, [])
+    "" -> #(acc, "")
     // if the codeblock itself is indented, we ignore spaces up to the level of the indent
-    [" ", ..in] if indentation > 0 ->
+    " " <> in if indentation > 0 ->
       slurp_verbatim_line(in, indentation - 1, acc)
-    ["\n", ..in] -> #(acc <> "\n", in)
-    [c, ..in] -> slurp_verbatim_line(in, 0, acc <> c)
+    "\n" <> in -> #(acc <> "\n", in)
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> slurp_verbatim_line(in, 0, acc <> c)
+        Error(_) -> #(acc, "")
+      }
   }
 }
 
-fn parse_codeblock_end(in: Chars, delim: String, count: Int) -> Option(#(Chars)) {
+fn parse_codeblock_end(in: String, delim: String, count: Int) -> Option(String) {
   case in {
-    ["\n", ..in] if count == 0 -> Some(#(in))
-    _ if count == 0 -> Some(#(in))
+    "" -> Some(in)
+    "\n" <> in if count == 0 -> Some(in)
+    _ if count == 0 -> Some(in)
 
     // if the codeblock is indented (ex: in a footnote block), we need to accept an indented end marker
-    [" ", ..in] -> parse_codeblock_end(in, delim, count)
-    [c, ..in] if c == delim -> parse_codeblock_end(in, delim, count - 1)
+    " " <> in -> parse_codeblock_end(in, delim, count)
 
-    [] -> Some(#(in))
-    _ -> None
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) if c == delim -> parse_codeblock_end(in, delim, count - 1)
+        Ok(_) -> Some(in)
+        _ -> None
+      }
   }
 }
 
 fn parse_codeblock_language(
-  in: Chars,
+  in: String,
   language: String,
-) -> Option(#(Option(String), Chars)) {
+) -> Option(#(Option(String), String)) {
+  // TODO: use split_once on the newline
   case in {
     // A language specifier cannot contain a backtick
-    ["`", ..] -> None
+    "`" <> _ -> None
 
-    [] -> Some(#(None, in))
-    ["\n", ..in] if language == "" -> Some(#(None, in))
-    ["\n", ..in] -> Some(#(Some(language), in))
-    [c, ..in] -> parse_codeblock_language(in, language <> c)
+    "" -> Some(#(None, in))
+    "\n" <> in if language == "" -> Some(#(None, in))
+    "\n" <> in -> Some(#(Some(language), in))
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> parse_codeblock_language(in, language <> c)
+        Error(_) -> Some(#(None, in))
+      }
   }
 }
 
-fn parse_ref_def(in: Chars, id: String) -> Option(#(String, String, Chars)) {
+fn parse_ref_def(in: String, id: String) -> Option(#(String, String, String)) {
   case in {
-    ["]", ":", ..in] -> parse_ref_value(in, id, "")
-    [] | ["]", ..] | ["\n", ..] -> None
-    [c, ..in] -> parse_ref_def(in, id <> c)
+    "]:" <> in -> parse_ref_value(in, id, "")
+    "" | "]" <> _ | "\n" <> _ -> None
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> parse_ref_def(in, id <> c)
+        Error(_) -> None
+      }
   }
 }
 
 fn parse_ref_value(
-  in: Chars,
+  in: String,
   id: String,
   url: String,
-) -> Option(#(String, String, Chars)) {
+) -> Option(#(String, String, String)) {
   case in {
-    [] -> Some(#(id, string.trim(url), []))
-    ["\n", " ", ..in] -> parse_ref_value(drop_spaces(in), id, url)
-    ["\n", ..in] -> Some(#(id, string.trim(url), in))
-    [c, ..in] -> parse_ref_value(in, id, url <> c)
+    "" -> Some(#(id, string.trim(url), ""))
+    "\n " <> in -> parse_ref_value(drop_spaces(in), id, url)
+    "\n" <> in -> Some(#(id, string.trim(url), in))
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> parse_ref_value(in, id, url <> c)
+        Error(_) -> Some(#(id, string.trim(url), ""))
+      }
   }
 }
 
 fn parse_footnote_def(
-  in: Chars,
+  in: String,
   refs: Refs,
   id: String,
-) -> Option(#(String, List(Container), Refs, Chars)) {
+) -> Option(#(String, List(Container), Refs, String)) {
   case in {
-    ["]", ":", ..in] -> {
+    "]:" <> in -> {
       let #(in, spaces_count) = count_drop_spaces(in, 0)
       // Because this is the beginning of the block, we don't have to make sure 
       // it is properly indented, so we might be able to skip that process.
       let block_parser = case in {
         // However, if there is a new line directly following the beginning of the block,
         // we need to check the indentation to be sure that it is not an empty block
-        ["\n", ..] -> parse_block
+        "\n" <> _ -> parse_block
         _ -> fn(in, refs, ast, attrs, required_spaces) {
           parse_block_after_indent_checked(
             in,
@@ -427,26 +455,30 @@ fn parse_footnote_def(
       let #(block, refs, rest) = block_parser(in, refs, [], dict.new(), 1)
       Some(#(id, block, refs, rest))
     }
-    [] | ["]", ..] | ["\n", ..] -> None
-    [c, ..in] -> parse_footnote_def(in, refs, id <> c)
+    "" | "]" <> _ | "\n" <> _ -> None
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> parse_footnote_def(in, refs, id <> c)
+        Error(_) -> None
+      }
   }
 }
 
 fn parse_attributes(
-  in: Chars,
+  in: String,
   attrs: Dict(String, String),
-) -> Option(#(Dict(String, String), Chars)) {
+) -> Option(#(Dict(String, String), String)) {
   let in = drop_spaces(in)
   case in {
-    [] -> None
-    ["}", ..in] -> parse_attributes_end(in, attrs)
-    ["#", ..in] -> {
+    "" -> None
+    "}" <> in -> parse_attributes_end(in, attrs)
+    "#" <> in -> {
       case parse_attributes_id_or_class(in, "") {
         Some(#(id, in)) -> parse_attributes(in, add_attribute(attrs, "id", id))
         None -> None
       }
     }
-    [".", ..in] -> {
+    "." <> in -> {
       case parse_attributes_id_or_class(in, "") {
         Some(#(c, in)) -> parse_attributes(in, add_attribute(attrs, "class", c))
         None -> None
@@ -461,74 +493,90 @@ fn parse_attributes(
   }
 }
 
-fn parse_attribute(in: Chars, key: String) -> Option(#(String, String, Chars)) {
+fn parse_attribute(in: String, key: String) -> Option(#(String, String, String)) {
   case in {
-    [] | [" ", ..] -> None
-    ["=", "\"", ..in] -> parse_attribute_quoted_value(in, key, "")
-    ["=", ..in] -> parse_attribute_value(in, key, "")
-    [c, ..in] -> parse_attribute(in, key <> c)
+    "" | " " <> _ -> None
+    "=\"" <> in -> parse_attribute_quoted_value(in, key, "")
+    "=" <> in -> parse_attribute_value(in, key, "")
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> parse_attribute(in, key <> c)
+        Error(_) -> None
+      }
   }
 }
 
 fn parse_attribute_value(
-  in: Chars,
+  in: String,
   key: String,
   value: String,
-) -> Option(#(String, String, Chars)) {
+) -> Option(#(String, String, String)) {
   case in {
-    [] -> None
-    [" ", ..in] -> Some(#(key, value, in))
-    ["}", ..] -> Some(#(key, value, in))
-    [c, ..in] -> parse_attribute_value(in, key, value <> c)
+    "" -> None
+    " " <> in -> Some(#(key, value, in))
+    "}" <> _ -> Some(#(key, value, in))
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> parse_attribute_value(in, key, value <> c)
+        Error(_) -> None
+      }
   }
 }
 
 fn parse_attribute_quoted_value(
-  in: Chars,
+  in: String,
   key: String,
   value: String,
-) -> Option(#(String, String, Chars)) {
+) -> Option(#(String, String, String)) {
   case in {
-    [] -> None
-    ["\"", ..in] -> Some(#(key, value, in))
-    [c, ..in] -> parse_attribute_quoted_value(in, key, value <> c)
+    "" -> None
+    "\"" <> in -> Some(#(key, value, in))
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> parse_attribute_quoted_value(in, key, value <> c)
+        Error(_) -> None
+      }
   }
 }
 
 fn parse_attributes_id_or_class(
-  in: Chars,
+  in: String,
   id: String,
-) -> Option(#(String, Chars)) {
+) -> Option(#(String, String)) {
   case in {
-    [] | ["}", ..] | [" ", ..] -> Some(#(id, in))
-    ["#", ..] | [".", ..] | ["=", ..] -> None
+    "" | "}" <> _ | " " <> _ -> Some(#(id, in))
+    "#" <> _ | "." <> _ | "=" <> _ -> None
     // TODO: in future this will be permitted as attributes can be over multiple lines
-    ["\n", ..] -> None
-    [c, ..in] -> parse_attributes_id_or_class(in, id <> c)
+    "\n" <> _ -> None
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> parse_attributes_id_or_class(in, id <> c)
+        Error(_) -> Some(#(id, in))
+      }
   }
 }
 
 fn parse_attributes_end(
-  in: Chars,
+  in: String,
   attrs: Dict(String, String),
-) -> Option(#(Dict(String, String), Chars)) {
+) -> Option(#(Dict(String, String), String)) {
   case in {
-    [] -> Some(#(attrs, []))
-    ["\n", ..in] -> Some(#(attrs, in))
-    [" ", ..in] -> parse_attributes_end(in, attrs)
-    [_, ..] -> None
+    "" -> Some(#(attrs, ""))
+    "\n" <> in -> Some(#(attrs, in))
+    " " <> in -> parse_attributes_end(in, attrs)
+    _ -> None
   }
 }
 
 fn parse_heading(
-  in: Chars,
+  in: String,
   refs: Refs,
   attrs: Dict(String, String),
-) -> #(Container, Refs, Chars) {
+) -> #(Container, Refs, String) {
   case heading_level(in, 1) {
     Some(#(level, in)) -> {
       let in = drop_spaces(in)
-      let #(inline_in, in) = take_heading_chars(in, level, [])
+      let #(inline_in, in) = take_heading_chars(in, level, "")
       let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
       let text = take_inline_text(inline, "")
       let #(refs, attrs) = case id_sanitise(text) {
@@ -546,11 +594,11 @@ fn parse_heading(
         }
       }
       let heading = Heading(attrs, level, inline)
-      #(heading, refs, list.append(inline_in_remaining, in))
+      #(heading, refs, inline_in_remaining <> in)
     }
 
     None -> {
-      let #(p, in) = parse_paragraph(["#", ..in], attrs)
+      let #(p, in) = parse_paragraph("#" <> in, attrs)
       #(p, refs, in)
     }
   }
@@ -558,186 +606,180 @@ fn parse_heading(
 
 fn id_sanitise(content: String) -> String {
   content
-  |> string.to_graphemes
-  |> list.filter(id_char)
-  |> id_escape("")
+  |> string.replace("#", "")
+  |> string.replace("?", "")
+  |> string.replace("!", "")
+  |> string.replace(",", "")
+  |> string.trim
+  |> string.replace(" ", "-")
+  |> string.replace("\n", "-")
 }
 
-fn id_char(char: String) -> Bool {
-  case char {
-    "#" | "?" | "!" | "," -> False
-    _ -> True
-  }
-}
-
-fn id_escape(content: Chars, acc: String) -> String {
-  case content {
-    [] -> acc
-
-    [" ", ..rest] | ["\n", ..rest] if rest == [] -> acc
-    [" ", ..rest] | ["\n", ..rest] if acc == "" -> id_escape(rest, acc)
-
-    [" ", ..rest] | ["\n", ..rest] -> id_escape(rest, acc <> "-")
-
-    [c, ..rest] -> id_escape(rest, acc <> c)
-  }
-}
-
-fn take_heading_chars(in: Chars, level: Int, acc: Chars) -> #(Chars, Chars) {
+fn take_heading_chars(in: String, level: Int, acc: String) -> #(String, String) {
   case in {
-    [] | ["\n"] -> #(list.reverse(acc), [])
-    ["\n", "\n", ..in] -> #(list.reverse(acc), in)
-    ["\n", "#", ..rest] -> {
-      case take_heading_chars_newline_hash(rest, level - 1, ["\n", ..acc]) {
+    "" | "\n" -> #(acc, "")
+    "\n\n" <> in -> #(acc, in)
+    "\n#" <> in -> {
+      case take_heading_chars_newline_hash(in, level - 1, acc <> "\n") {
         Some(#(acc, in)) -> take_heading_chars(in, level, acc)
-        None -> #(list.reverse(acc), in)
+        None -> #(acc, in)
       }
     }
-    [c, ..in] -> take_heading_chars(in, level, [c, ..acc])
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> take_heading_chars(in, level, acc <> c)
+        Error(_) -> #(acc, "")
+      }
   }
 }
 
 fn take_heading_chars_newline_hash(
-  in: Chars,
+  in: String,
   level: Int,
-  acc: Chars,
-) -> Option(#(Chars, Chars)) {
+  acc: String,
+) -> Option(#(String, String)) {
   case in {
     _ if level < 0 -> None
-    [] if level > 0 -> None
+    "" if level > 0 -> None
 
-    [] if level == 0 -> Some(#(acc, []))
-    [" ", ..in] if level == 0 -> Some(#(acc, in))
+    "" if level == 0 -> Some(#(acc, ""))
+    " " <> in if level == 0 -> Some(#(acc, in))
 
-    ["#", ..rest] -> take_heading_chars_newline_hash(rest, level - 1, acc)
+    "#" <> rest -> take_heading_chars_newline_hash(rest, level - 1, acc)
 
     _ -> None
   }
 }
 
 fn parse_inline(
-  in: Chars,
+  in: String,
   text: String,
   acc: List(Inline),
-) -> #(List(Inline), Chars) {
+) -> #(List(Inline), String) {
   case in {
-    [] if text == "" -> #(list.reverse(acc), [])
-    [] -> parse_inline([], "", [Text(text), ..acc])
+    "" if text == "" -> #(list.reverse(acc), "")
+    "" -> parse_inline("", "", [Text(text), ..acc])
 
     // Escapes
-    ["\\", c, ..rest] -> {
-      case c {
-        "\n" -> {
-          parse_inline(rest, "", [Linebreak, Text(text), ..acc])
-        }
-        " " -> {
-          parse_inline(rest, text <> "&nbsp;", acc)
-        }
-        "!"
-        | "\""
-        | "#"
-        | "$"
-        | "%"
-        | "&"
-        | "'"
-        | "("
-        | ")"
-        | "*"
-        | "+"
-        | ","
-        | "-"
-        | "."
-        | "/"
-        | ":"
-        | ";"
-        | "<"
-        | "="
-        | ">"
-        | "?"
-        | "@"
-        | "["
-        | "\\"
-        | "]"
-        | "^"
-        | "_"
-        | "`"
-        | "{"
-        | "|"
-        | "}"
-        | "~" -> {
-          parse_inline(rest, text <> c, acc)
-        }
-        _ -> parse_inline(list.append([c], rest), text <> "\\", acc)
+    "\\" <> in ->
+      case string.pop_grapheme(in) {
+        Error(_) -> parse_inline("", text <> "\\", acc)
+
+        Ok(#(c, rest)) ->
+          case c {
+            "!"
+            | "\""
+            | "#"
+            | "$"
+            | "%"
+            | "&"
+            | "'"
+            | "("
+            | ")"
+            | "*"
+            | "+"
+            | ","
+            | "-"
+            | "."
+            | "/"
+            | ":"
+            | ";"
+            | "<"
+            | "="
+            | ">"
+            | "?"
+            | "@"
+            | "["
+            | "\\"
+            | "]"
+            | "^"
+            | "_"
+            | "`"
+            | "{"
+            | "|"
+            | "}"
+            | "~" -> parse_inline(rest, text <> c, acc)
+            "\n" -> parse_inline(rest, "", [Linebreak, Text(text), ..acc])
+            " " -> parse_inline(rest, text <> "&nbsp;", acc)
+            _ -> parse_inline(in, text <> "\\", acc)
+          }
       }
-    }
 
     // Emphasis and strong
-    ["_", c, ..rest] if c != " " && c != "\t" && c != "\n" -> {
-      let rest = [c, ..rest]
-      case parse_emphasis(rest, "_") {
-        None -> parse_inline(rest, text <> "_", acc)
-        Some(#(inner, in)) ->
-          parse_inline(in, "", [Emphasis(inner), Text(text), ..acc])
-      }
-    }
-    ["*", c, ..rest] if c != " " && c != "\t" && c != "\n" -> {
-      let rest = [c, ..rest]
-      case parse_emphasis(rest, "*") {
-        None -> parse_inline(rest, text <> "*", acc)
-        Some(#(inner, in)) ->
-          parse_inline(in, "", [Strong(inner), Text(text), ..acc])
+    "_ " as start <> in
+    | "_\t" as start <> in
+    | "_\n" as start <> in
+    | "* " as start <> in
+    | "*\t" as start <> in
+    | "*\n" as start <> in -> parse_inline(in, text <> start, acc)
+
+    "_" as start <> rest | "*" as start <> rest -> {
+      case parse_emphasis(rest, start) {
+        None -> parse_inline(rest, text <> start, acc)
+        Some(#(inner, in)) -> {
+          let item = case start {
+            "*" -> Strong(inner)
+            _ -> Emphasis(inner)
+          }
+          parse_inline(in, "", [item, Text(text), ..acc])
+        }
       }
     }
 
-    ["[", "^", ..rest] -> {
-      case parse_footnote(rest, "^") {
-        None -> parse_inline(rest, text <> "[^", acc)
+    "[^" <> in -> {
+      case parse_footnote(in, "^") {
+        None -> parse_inline(in, text <> "[^", acc)
         // if this is actually a definition instead of a reference, return early
         // This applies in situations such as the following:
         // ```
         // [^footnote]: very long footnote[^another-footnote]
         // [^another-footnote]: bla bla[^another-footnote]
         // ```
-        Some(#(_footnote, [":", ..])) if text != "" -> #(
+        Some(#(_footnote, ":" <> _)) if text != "" -> #(
           list.reverse([Text(text), ..acc]),
           in,
         )
-        Some(#(_footnote, [":", ..])) -> #(list.reverse(acc), in)
+        Some(#(_footnote, ":" <> _)) -> #(list.reverse(acc), in)
         Some(#(footnote, in)) ->
           parse_inline(in, "", [footnote, Text(text), ..acc])
       }
     }
 
     // Link and image
-    ["[", ..rest] -> {
-      case parse_link(rest, Link) {
-        None -> parse_inline(rest, text <> "[", acc)
+    "[" <> in -> {
+      case parse_link(in, Link) {
+        None -> parse_inline(in, text <> "[", acc)
         Some(#(link, in)) -> parse_inline(in, "", [link, Text(text), ..acc])
       }
     }
-    ["!", "[", ..rest] -> {
-      case parse_link(rest, Image) {
-        None -> parse_inline(rest, text <> "![", acc)
+    "![" <> in -> {
+      case parse_link(in, Image) {
+        None -> parse_inline(in, text <> "![", acc)
         Some(#(image, in)) -> parse_inline(in, "", [image, Text(text), ..acc])
       }
     }
 
     // Code
-    ["`", ..rest] -> {
-      let #(code, in) = parse_code(rest, 1)
+    "`" <> in -> {
+      let #(code, in) = parse_code(in, 1)
       parse_inline(in, "", [code, Text(text), ..acc])
     }
 
-    ["\n", ..rest] ->
-      drop_spaces(rest)
+    "\n" <> in ->
+      drop_spaces(in)
       |> parse_inline(text <> "\n", acc)
-    [c, ..rest] -> parse_inline(rest, text <> c, acc)
+
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> parse_inline(in, text <> c, acc)
+        Error(_) -> parse_inline("", "", [Text(text), ..acc])
+      }
   }
 }
 
-fn parse_code(in: Chars, count: Int) -> #(Inline, Chars) {
+fn parse_code(in: String, count: Int) -> #(Inline, String) {
   case in {
-    ["`", ..in] -> parse_code(in, count + 1)
+    "`" <> in -> parse_code(in, count + 1)
     _ -> {
       let #(content, in) = parse_code_content(in, count, "")
 
@@ -758,82 +800,87 @@ fn parse_code(in: Chars, count: Int) -> #(Inline, Chars) {
 }
 
 fn parse_code_content(
-  in: Chars,
+  in: String,
   count: Int,
   content: String,
-) -> #(String, Chars) {
+) -> #(String, String) {
   case in {
-    [] -> #(content, in)
-    ["`", ..in] -> {
+    "" -> #(content, in)
+    "`" <> in -> {
       let #(done, content, in) = parse_code_end(in, count, 1, content)
       case done {
         True -> #(content, in)
         False -> parse_code_content(in, count, content)
       }
     }
-    [c, ..in] -> parse_code_content(in, count, content <> c)
+
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) -> parse_code_content(in, count, content <> c)
+        Error(_) -> #(content, in)
+      }
   }
 }
 
 fn parse_code_end(
-  in: Chars,
+  in: String,
   limit: Int,
   count: Int,
   content: String,
-) -> #(Bool, String, Chars) {
+) -> #(Bool, String, String) {
   case in {
-    [] -> #(True, content, in)
-    ["`", ..in] -> parse_code_end(in, limit, count + 1, content)
-    [_, ..] if limit == count -> #(True, content, in)
-    [_, ..] -> #(False, content <> string.repeat("`", count), in)
+    "" -> #(True, content, in)
+    "`" <> in -> parse_code_end(in, limit, count + 1, content)
+    _ if limit == count -> #(True, content, in)
+    _ -> #(False, content <> string.repeat("`", count), in)
   }
 }
 
-fn parse_emphasis(in: Chars, close: String) -> Option(#(List(Inline), Chars)) {
-  case take_emphasis_chars(in, close, []) {
+fn parse_emphasis(in: String, close: String) -> Option(#(List(Inline), String)) {
+  case take_emphasis_chars(in, close, "") {
     None -> None
 
     Some(#(inline_in, in)) -> {
       let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
-      Some(#(inline, list.append(inline_in_remaining, in)))
+      Some(#(inline, inline_in_remaining <> in))
     }
   }
 }
 
 fn take_emphasis_chars(
-  in: Chars,
+  in: String,
   close: String,
-  acc: Chars,
-) -> Option(#(Chars, Chars)) {
+  acc: String,
+) -> Option(#(String, String)) {
   case in {
-    [] -> None
+    "" -> None
 
     // Inline code overrides emphasis
-    ["`", ..] -> None
+    "`" <> _ -> None
 
     // The close is not a close if it is preceeded by whitespace
-    ["\t", c, ..in] if c == close ->
-      take_emphasis_chars(in, close, [" ", c, ..acc])
-    ["\n", c, ..in] if c == close ->
-      take_emphasis_chars(in, close, [" ", c, ..acc])
-    [" ", c, ..in] if c == close ->
-      take_emphasis_chars(in, close, [" ", c, ..acc])
-
-    [c, ..in] if c == close -> {
-      case list.reverse(acc) {
-        [] -> None
-        acc -> Some(#(acc, in))
+    "\t" as ws <> in | "\n" as ws <> in | " " as ws <> in ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, in)) if c == close ->
+          take_emphasis_chars(in, close, acc <> ws <> c)
+        _ -> take_emphasis_chars(in, close, acc <> ws)
       }
-    }
-    [c, ..rest] -> take_emphasis_chars(rest, close, [c, ..acc])
+
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, __)) if c == close && acc == "" -> None
+        Ok(#(c, in)) if c == close -> Some(#(acc, in))
+        Ok(#(c, in)) -> take_emphasis_chars(in, close, acc <> c)
+        Error(_) -> None
+      }
   }
 }
 
 fn parse_link(
-  in: Chars,
+  in: String,
   to_inline: fn(List(Inline), Destination) -> Inline,
-) -> Option(#(Inline, Chars)) {
-  case take_link_chars(in, []) {
+) -> Option(#(Inline, String)) {
+  case take_link_chars(in, "") {
     // This wasn't a link, it was just a `[` in the text
     None -> None
 
@@ -843,72 +890,79 @@ fn parse_link(
         Reference("") -> Reference(take_inline_text(inline, ""))
         ref -> ref
       }
-      Some(#(to_inline(inline, ref), list.append(inline_in_remaining, in)))
+      Some(#(to_inline(inline, ref), inline_in_remaining <> in))
     }
   }
 }
 
 fn take_link_chars(
-  in: Chars,
-  inline_in: Chars,
-) -> Option(#(Chars, Destination, Chars)) {
+  in: String,
+  inline_in: String,
+) -> Option(#(String, Destination, String)) {
   case in {
     // This wasn't a link, it was just a `[..]` in the text
-    [] -> None
+    "" -> None
 
-    ["]", "[", ..in] -> {
-      let inline_in = list.reverse(inline_in)
-      take_link_chars_destination(in, False, inline_in, "")
-    }
-    ["]", "(", ..in] -> {
-      let inline_in = list.reverse(inline_in)
-      take_link_chars_destination(in, True, inline_in, "")
-    }
-    [c, ..rest] -> take_link_chars(rest, [c, ..inline_in])
+    "][" <> in -> take_link_chars_destination(in, False, inline_in, "")
+    "](" <> in -> take_link_chars_destination(in, True, inline_in, "")
+
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, rest)) -> take_link_chars(rest, inline_in <> c)
+        // This wasn't a link, it was just a `[..]` in the text
+        Error(_) -> None
+      }
   }
 }
 
 fn take_link_chars_destination(
-  in: Chars,
+  in: String,
   is_url: Bool,
-  inline_in: Chars,
+  inline_in: String,
   acc: String,
-) -> Option(#(Chars, Destination, Chars)) {
+) -> Option(#(String, Destination, String)) {
   case in {
-    [] -> None
+    "" -> None
 
-    [")", ..in] if is_url -> Some(#(inline_in, Url(acc), in))
-    ["]", ..in] if !is_url -> Some(#(inline_in, Reference(acc), in))
+    ")" <> in if is_url -> Some(#(inline_in, Url(acc), in))
+    "]" <> in if !is_url -> Some(#(inline_in, Reference(acc), in))
 
-    ["\n", ..rest] if is_url ->
+    "\n" <> rest if is_url ->
       take_link_chars_destination(rest, is_url, inline_in, acc)
-    ["\n", ..rest] if !is_url ->
+    "\n" <> rest if !is_url ->
       take_link_chars_destination(rest, is_url, inline_in, acc <> " ")
-    [c, ..rest] ->
-      take_link_chars_destination(rest, is_url, inline_in, acc <> c)
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, rest)) ->
+          take_link_chars_destination(rest, is_url, inline_in, acc <> c)
+        Error(_) -> None
+      }
   }
 }
 
-fn parse_footnote(in: Chars, acc: String) -> Option(#(Inline, Chars)) {
+fn parse_footnote(in: String, acc: String) -> Option(#(Inline, String)) {
   case in {
     // This wasn't a footnote, it was just a `[^` in the text
-    [] -> None
+    "" -> None
 
-    ["]", ..rest] -> {
+    "]" <> rest -> {
       Some(#(Footnote(acc), rest))
     }
-    [c, ..rest] -> {
-      parse_footnote(rest, acc <> c)
-    }
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, rest)) -> parse_footnote(rest, acc <> c)
+        // This wasn't a footnote, it was just a `[^` in the text
+        Error(_) -> None
+      }
   }
 }
 
-fn heading_level(in: Chars, level: Int) -> Option(#(Int, Chars)) {
+fn heading_level(in: String, level: Int) -> Option(#(Int, String)) {
   case in {
-    ["#", ..rest] -> heading_level(rest, level + 1)
+    "#" <> rest -> heading_level(rest, level + 1)
 
-    [] if level > 0 -> Some(#(level, []))
-    [" ", ..rest] | ["\n", ..rest] if level != 0 -> Some(#(level, rest))
+    "" if level > 0 -> Some(#(level, ""))
+    " " <> rest | "\n" <> rest if level != 0 -> Some(#(level, rest))
 
     _ -> None
   }
@@ -934,19 +988,23 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
 }
 
 fn parse_paragraph(
-  in: Chars,
+  in: String,
   attrs: Dict(String, String),
-) -> #(Container, Chars) {
-  let #(inline_in, in) = take_paragraph_chars(in, [])
+) -> #(Container, String) {
+  let #(inline_in, in) = take_paragraph_chars(in, "")
   let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
-  #(Paragraph(attrs, inline), list.append(inline_in_remaining, in))
+  #(Paragraph(attrs, inline), inline_in_remaining <> in)
 }
 
-fn take_paragraph_chars(in: Chars, acc: Chars) -> #(Chars, Chars) {
+fn take_paragraph_chars(in: String, acc: String) -> #(String, String) {
   case in {
-    [] | ["\n"] -> #(list.reverse(acc), [])
-    ["\n", "\n", ..rest] -> #(list.reverse(acc), rest)
-    [c, ..rest] -> take_paragraph_chars(rest, [c, ..acc])
+    "" | "\n" -> #(acc, "")
+    "\n\n" <> rest -> #(acc, rest)
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, rest)) -> take_paragraph_chars(rest, acc <> c)
+        Error(_) -> #(acc, "")
+      }
   }
 }
 

@@ -1,4 +1,19 @@
 ````
+test[^a].
+
+[^a]: This is a note.
+.
+<p>test<a id="fnref1" href="#fn1" role="doc-noteref"><sup>1</sup></a>.</p>
+<section role="doc-endnotes">
+<hr>
+<ol>
+<li id="fn1">
+<p>This is a note.<a href="#fnref1" role="doc-backlink">↩︎</a></p>
+</li>
+</ol>
+</section>
+````
+````
 test[^a] and another[^foo_bar].
 
 [^a]: This is a note.
