@@ -307,6 +307,9 @@ fn parse_codeblock_start(
   count: Int,
 ) -> Option(#(Option(String), Int, String)) {
   case in {
+    "`" as c <> in | "~" as c <> in if c == delim ->
+      parse_codeblock_start(in, delim, count + 1)
+
     "\n" <> in if count >= 3 -> Some(#(None, count, in))
 
     "" -> None
@@ -316,12 +319,7 @@ fn parse_codeblock_start(
       #(language, count, in)
     }
 
-    _ ->
-      case string.pop_grapheme(in) {
-        Ok(#(c, in)) if c == delim ->
-          parse_codeblock_start(in, delim, count + 1)
-        _ -> None
-      }
+    _ -> None
   }
 }
 
@@ -371,8 +369,8 @@ fn parse_codeblock_end(in: String, delim: String, count: Int) -> Option(String) 
     _ ->
       case string.pop_grapheme(in) {
         Ok(#(c, in)) if c == delim -> parse_codeblock_end(in, delim, count - 1)
-        Ok(_) -> Some(in)
-        _ -> None
+        Ok(_) -> None
+        Error(_) -> Some(in)
       }
   }
 }
