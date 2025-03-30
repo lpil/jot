@@ -36,8 +36,8 @@ fn run_testcase(testcase: support.Example) -> Result(Nil, Nil) {
       io.print_error(ansi.gray("\nWant:\n") <> string.inspect(testcase.html))
       io.print_error(ansi.gray("\nGot:\n") <> string.inspect(result))
       io.print_error("\n")
-      panic
-      // Error(Nil)
+      // panic
+      Error(Nil)
     }
   }
 }
