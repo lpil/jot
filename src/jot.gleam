@@ -1,13 +1,5 @@
 // TODO: collapse adjacent text nodes
 
-// OH NO! IT'S SLOW!
-// OH NO! IT'S SLOW!
-// OH NO! IT'S SLOW!
-// OH NO! IT'S SLOW!
-//
-// TODO: use split_once instead of pop_grapheme
-// TODO: use indexes rather than appending to strings?
-
 import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/int
@@ -657,49 +649,43 @@ fn parse_inline(
     "" -> parse_inline("", "", [Text(text), ..acc])
 
     // Escapes
-    "\\" <> in ->
-      case string.pop_grapheme(in) {
-        Error(_) -> parse_inline("", text <> "\\", acc)
+    "\\!" <> in -> parse_inline(in, text <> "!", acc)
+    "\\\"" <> in -> parse_inline(in, text <> "\"", acc)
+    "\\#" <> in -> parse_inline(in, text <> "#", acc)
+    "\\$" <> in -> parse_inline(in, text <> "$", acc)
+    "\\%" <> in -> parse_inline(in, text <> "%", acc)
+    "\\&" <> in -> parse_inline(in, text <> "&", acc)
+    "\\'" <> in -> parse_inline(in, text <> "'", acc)
+    "\\(" <> in -> parse_inline(in, text <> "(", acc)
+    "\\)" <> in -> parse_inline(in, text <> ")", acc)
+    "\\*" <> in -> parse_inline(in, text <> "*", acc)
+    "\\+" <> in -> parse_inline(in, text <> "+", acc)
+    "\\," <> in -> parse_inline(in, text <> ",", acc)
+    "\\-" <> in -> parse_inline(in, text <> "-", acc)
+    "\\." <> in -> parse_inline(in, text <> ".", acc)
+    "\\/" <> in -> parse_inline(in, text <> "/", acc)
+    "\\:" <> in -> parse_inline(in, text <> ":", acc)
+    "\\;" <> in -> parse_inline(in, text <> ";", acc)
+    "\\<" <> in -> parse_inline(in, text <> "<", acc)
+    "\\=" <> in -> parse_inline(in, text <> "=", acc)
+    "\\>" <> in -> parse_inline(in, text <> ">", acc)
+    "\\?" <> in -> parse_inline(in, text <> "?", acc)
+    "\\@" <> in -> parse_inline(in, text <> "@", acc)
+    "\\[" <> in -> parse_inline(in, text <> "[", acc)
+    "\\\\" <> in -> parse_inline(in, text <> "\\", acc)
+    "\\]" <> in -> parse_inline(in, text <> "]", acc)
+    "\\^" <> in -> parse_inline(in, text <> "^", acc)
+    "\\_" <> in -> parse_inline(in, text <> "_", acc)
+    "\\`" <> in -> parse_inline(in, text <> "`", acc)
+    "\\{" <> in -> parse_inline(in, text <> "{", acc)
+    "\\|" <> in -> parse_inline(in, text <> "|", acc)
+    "\\}" <> in -> parse_inline(in, text <> "}", acc)
+    "\\~" <> in -> parse_inline(in, text <> "~", acc)
 
-        Ok(#(c, rest)) ->
-          case c {
-            "!"
-            | "\""
-            | "#"
-            | "$"
-            | "%"
-            | "&"
-            | "'"
-            | "("
-            | ")"
-            | "*"
-            | "+"
-            | ","
-            | "-"
-            | "."
-            | "/"
-            | ":"
-            | ";"
-            | "<"
-            | "="
-            | ">"
-            | "?"
-            | "@"
-            | "["
-            | "\\"
-            | "]"
-            | "^"
-            | "_"
-            | "`"
-            | "{"
-            | "|"
-            | "}"
-            | "~" -> parse_inline(rest, text <> c, acc)
-            "\n" -> parse_inline(rest, "", [Linebreak, Text(text), ..acc])
-            " " -> parse_inline(rest, text <> "&nbsp;", acc)
-            _ -> parse_inline(in, text <> "\\", acc)
-          }
-      }
+    "\\\n" <> in -> parse_inline(in, "", [Linebreak, Text(text), ..acc])
+    "\\ " <> in -> parse_inline(in, text <> "&nbsp;", acc)
+
+    "\\" -> parse_inline("", text <> "\\", acc)
 
     // Emphasis and strong
     "_ " as start <> in
@@ -895,19 +881,17 @@ fn take_link_chars(
   in: String,
   inline_in: String,
 ) -> Option(#(String, Destination, String)) {
-  case in {
+  case string.split_once(in, "]") {
+    Ok(#(before, "[" <> in)) ->
+      take_link_chars_destination(in, False, inline_in <> before, "")
+
+    Ok(#(before, "(" <> in)) ->
+      take_link_chars_destination(in, True, inline_in <> before, "")
+
+    Ok(#(before, in)) -> take_link_chars(in, inline_in <> before)
+
     // This wasn't a link, it was just a `[..]` in the text
-    "" -> None
-
-    "][" <> in -> take_link_chars_destination(in, False, inline_in, "")
-    "](" <> in -> take_link_chars_destination(in, True, inline_in, "")
-
-    _ ->
-      case string.pop_grapheme(in) {
-        Ok(#(c, rest)) -> take_link_chars(rest, inline_in <> c)
-        // This wasn't a link, it was just a `[..]` in the text
-        Error(_) -> None
-      }
+    Error(_) -> None
   }
 }
 
@@ -987,19 +971,18 @@ fn parse_paragraph(
   in: String,
   attrs: Dict(String, String),
 ) -> #(Container, String) {
-  let #(inline_in, in) = take_paragraph_chars(in, "")
+  let #(inline_in, in) = take_paragraph_chars(in)
   let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
   #(Paragraph(attrs, inline), inline_in_remaining <> in)
 }
 
-fn take_paragraph_chars(in: String, acc: String) -> #(String, String) {
-  case in {
-    "" | "\n" -> #(acc, "")
-    "\n\n" <> rest -> #(acc, rest)
-    _ ->
-      case string.pop_grapheme(in) {
-        Ok(#(c, rest)) -> take_paragraph_chars(rest, acc <> c)
-        Error(_) -> #(acc, "")
+fn take_paragraph_chars(in: String) -> #(String, String) {
+  case string.split_once(in, "\n\n") {
+    Ok(#(content, in)) -> #(content, in)
+    Error(_) ->
+      case string.ends_with(in, "\n") {
+        True -> #(string.drop_end(in, 1), "")
+        False -> #(in, "")
       }
   }
 }
