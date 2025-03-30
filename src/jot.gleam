@@ -722,9 +722,9 @@ fn parse_inline(
       }
     }
 
-    "[^" <> in -> {
-      case parse_footnote(in, "^") {
-        None -> parse_inline(in, text <> "[^", acc)
+    "[^" <> rest -> {
+      case parse_footnote(rest, "^") {
+        None -> parse_inline(rest, text <> "[^", acc)
         // if this is actually a definition instead of a reference, return early
         // This applies in situations such as the following:
         // ```
