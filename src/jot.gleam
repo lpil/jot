@@ -362,7 +362,6 @@ fn slurp_verbatim_line(
 
 fn parse_codeblock_end(in: String, delim: String, count: Int) -> Option(String) {
   case in {
-    "" -> Some(in)
     "\n" <> in if count == 0 -> Some(in)
     _ if count == 0 -> Some(in)
 
@@ -416,7 +415,6 @@ fn parse_ref_value(
   url: String,
 ) -> Option(#(String, String, String)) {
   case in {
-    "" -> Some(#(id, string.trim(url), ""))
     "\n " <> in -> parse_ref_value(drop_spaces(in), id, url)
     "\n" <> in -> Some(#(id, string.trim(url), in))
     _ ->
@@ -619,8 +617,8 @@ fn take_heading_chars(in: String, level: Int, acc: String) -> #(String, String) 
   case in {
     "" | "\n" -> #(acc, "")
     "\n\n" <> in -> #(acc, in)
-    "\n#" <> in -> {
-      case take_heading_chars_newline_hash(in, level - 1, acc <> "\n") {
+    "\n#" <> rest -> {
+      case take_heading_chars_newline_hash(rest, level - 1, acc <> "\n") {
         Some(#(acc, in)) -> take_heading_chars(in, level, acc)
         None -> #(acc, in)
       }
