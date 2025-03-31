@@ -7,6 +7,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import jot/internal/splitter.{type Splitter}
 
 pub type Document {
   Document(
@@ -77,16 +78,34 @@ pub fn to_html(djot: String) -> String {
   |> document_to_html
 }
 
+type Splitters {
+  Splitters(
+    verbatim_line_end: Splitter,
+    codeblock_language: Splitter,
+    inline: Splitter,
+    link_destination: Splitter,
+  )
+}
+
 /// Convert a string of Djot into a tree of records.
 ///
 /// This may be useful when you want more control over the HTML to be converted
 /// to, or you wish to convert Djot to some other format.
 ///
 pub fn parse(djot: String) -> Document {
+  let splitters =
+    Splitters(
+      verbatim_line_end: splitter.new([" ", "\n"]),
+      codeblock_language: splitter.new(["`", "\n"]),
+      inline: splitter.new(["\\", "_", "*", "[^", "[", "![", "`", "\n"]),
+      link_destination: splitter.new([")", "]", "\n"]),
+    )
+  let refs = Refs(dict.new(), dict.new())
+
   let #(ast, Refs(urls, footnotes), _) =
     djot
     |> string.replace("\r\n", "\n")
-    |> parse_document_content(Refs(dict.new(), dict.new()), [], dict.new())
+    |> parse_document_content(refs, splitters, [], dict.new())
 
   Document(ast, urls, footnotes)
 }
@@ -118,13 +137,22 @@ fn count_drop_spaces(in: String, count: Int) -> #(String, Int) {
 fn parse_document_content(
   in: String,
   refs: Refs,
+  splitters: Splitters,
   ast: List(Container),
   attrs: Dict(String, String),
 ) -> #(List(Container), Refs, String) {
   let in = drop_lines(in)
   let #(in, spaces_count) = count_drop_spaces(in, 0)
 
-  parse_containers(in, refs, ast, attrs, spaces_count, parse_document_content)
+  parse_containers(
+    in,
+    refs,
+    splitters,
+    ast,
+    attrs,
+    spaces_count,
+    parse_document_content,
+  )
 }
 
 /// Parse a block of Djot that ends once the content is no longer indented
@@ -143,6 +171,7 @@ fn parse_document_content(
 fn parse_block(
   in: String,
   refs: Refs,
+  splitters: Splitters,
   ast: List(Container),
   attrs: Dict(String, String),
   required_spaces: Int,
@@ -157,6 +186,7 @@ fn parse_block(
   parse_block_after_indent_checked(
     in,
     refs,
+    splitters,
     ast,
     attrs,
     required_spaces,
@@ -171,19 +201,29 @@ fn parse_block(
 fn parse_block_after_indent_checked(
   in: String,
   refs: Refs,
+  splitters: Splitters,
   ast: List(Container),
   attrs: Dict(String, String),
   required_spaces required_spaces: Int,
   indentation indentation: Int,
 ) {
-  parse_containers(in, refs, ast, attrs, indentation, fn(in, refs, ast, attrs) {
-    parse_block(in, refs, ast, attrs, required_spaces)
-  })
+  parse_containers(
+    in,
+    refs,
+    splitters,
+    ast,
+    attrs,
+    indentation,
+    fn(in, refs, splitters, ast, attrs) {
+      parse_block(in, refs, splitters, ast, attrs, required_spaces)
+    },
+  )
 }
 
 fn parse_containers(
   in: String,
   refs: Refs,
+  splitters: Splitters,
   ast: List(Container),
   attrs: Dict(String, String),
   indentation: Int,
@@ -193,7 +233,7 @@ fn parse_containers(
   // For example, when parsing blocks, we pass the `parse_block` function in as
   // the parser to ensure that each container meets indentation requirements
   // before we parse it
-  parser: fn(String, Refs, List(Container), Dict(String, String)) ->
+  parser: fn(String, Refs, Splitters, List(Container), Dict(String, String)) ->
     #(List(Container), Refs, String),
 ) -> #(List(Container), Refs, String) {
   case in {
@@ -201,50 +241,50 @@ fn parse_containers(
     "{" <> in2 ->
       case parse_attributes(in2, attrs) {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs)
-          parser(in, refs, [paragraph, ..ast], dict.new())
+          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          parser(in, refs, splitters, [paragraph, ..ast], dict.new())
         }
-        Some(#(attrs, in)) -> parser(in, refs, ast, attrs)
+        Some(#(attrs, in)) -> parser(in, refs, splitters, ast, attrs)
       }
 
     "#" <> in -> {
-      let #(heading, refs, in) = parse_heading(in, refs, attrs)
-      parser(in, refs, [heading, ..ast], dict.new())
+      let #(heading, refs, in) = parse_heading(in, refs, splitters, attrs)
+      parser(in, refs, splitters, [heading, ..ast], dict.new())
     }
 
     "~" as delim <> in2 | "`" as delim <> in2 -> {
-      case parse_codeblock(in2, attrs, delim, indentation) {
+      case parse_codeblock(in2, attrs, delim, indentation, splitters) {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs)
-          parser(in, refs, [paragraph, ..ast], dict.new())
+          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          parser(in, refs, splitters, [paragraph, ..ast], dict.new())
         }
         Some(#(codeblock, in)) ->
-          parser(in, refs, [codeblock, ..ast], dict.new())
+          parser(in, refs, splitters, [codeblock, ..ast], dict.new())
       }
     }
 
     "-" <> in2 | "*" <> in2 -> {
       case parse_thematic_break(1, in2) {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs)
-          parser(in, refs, [paragraph, ..ast], dict.new())
+          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          parser(in, refs, splitters, [paragraph, ..ast], dict.new())
         }
         Some(#(thematic_break, in)) -> {
-          parser(in, refs, [thematic_break, ..ast], dict.new())
+          parser(in, refs, splitters, [thematic_break, ..ast], dict.new())
         }
       }
     }
 
     "[^" <> in2 -> {
-      case parse_footnote_def(in2, refs, "^") {
+      case parse_footnote_def(in2, refs, splitters, "^") {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs)
-          parser(in, refs, [paragraph, ..ast], dict.new())
+          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          parser(in, refs, splitters, [paragraph, ..ast], dict.new())
         }
         Some(#(id, footnote, refs, in)) -> {
           let refs =
             Refs(..refs, footnotes: dict.insert(refs.footnotes, id, footnote))
-          parser(in, refs, ast, dict.new())
+          parser(in, refs, splitters, ast, dict.new())
         }
       }
     }
@@ -252,19 +292,19 @@ fn parse_containers(
     "[" <> in2 -> {
       case parse_ref_def(in2, "") {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs)
-          parser(in, refs, [paragraph, ..ast], dict.new())
+          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          parser(in, refs, splitters, [paragraph, ..ast], dict.new())
         }
         Some(#(id, url, in)) -> {
           let refs = Refs(..refs, urls: dict.insert(refs.urls, id, url))
-          parser(in, refs, ast, dict.new())
+          parser(in, refs, splitters, ast, dict.new())
         }
       }
     }
 
     _ -> {
-      let #(paragraph, in) = parse_paragraph(in, attrs)
-      parser(in, refs, [paragraph, ..ast], dict.new())
+      let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+      parser(in, refs, splitters, [paragraph, ..ast], dict.new())
     }
   }
 }
@@ -283,10 +323,12 @@ fn parse_codeblock(
   attrs: Dict(String, String),
   delim: String,
   indentation: Int,
+  splitters: Splitters,
 ) -> Option(#(Container, String)) {
-  use #(language, count, in) <- option.then(parse_codeblock_start(in, delim, 1))
+  let out = parse_codeblock_start(in, splitters, delim, 1)
+  use #(language, count, in) <- option.then(out)
   let #(content, in) =
-    parse_codeblock_content(in, delim, count, indentation, "")
+    parse_codeblock_content(in, delim, count, indentation, "", splitters)
   case language {
     Some("=html") -> Some(#(RawBlock(string.trim_end(content)), in))
     _ -> Some(#(Codeblock(attrs, language, content), in))
@@ -295,19 +337,24 @@ fn parse_codeblock(
 
 fn parse_codeblock_start(
   in: String,
+  splitters: Splitters,
   delim: String,
   count: Int,
 ) -> Option(#(Option(String), Int, String)) {
   case in {
     "`" as c <> in | "~" as c <> in if c == delim ->
-      parse_codeblock_start(in, delim, count + 1)
+      parse_codeblock_start(in, splitters, delim, count + 1)
 
     "\n" <> in if count >= 3 -> Some(#(None, count, in))
 
     "" -> None
     _non_empty if count >= 3 -> {
       let in = drop_spaces(in)
-      use #(language, in) <- option.map(parse_codeblock_language(in, ""))
+      use #(language, in) <- option.map(parse_codeblock_language(
+        in,
+        splitters,
+        "",
+      ))
       #(language, count, in)
     }
 
@@ -321,11 +368,12 @@ fn parse_codeblock_content(
   count: Int,
   indentation: Int,
   acc: String,
+  splitters: Splitters,
 ) -> #(String, String) {
   case parse_codeblock_end(in, delim, count) {
     None -> {
-      let #(acc, in) = slurp_verbatim_line(in, indentation, acc)
-      parse_codeblock_content(in, delim, count, indentation, acc)
+      let #(acc, in) = slurp_verbatim_line(in, indentation, acc, splitters)
+      parse_codeblock_content(in, delim, count, indentation, acc, splitters)
     }
     Some(in) -> #(acc, in)
   }
@@ -335,18 +383,14 @@ fn slurp_verbatim_line(
   in: String,
   indentation: Int,
   acc: String,
+  splitters: Splitters,
 ) -> #(String, String) {
-  case in {
-    "" -> #(acc, "")
-    // if the codeblock itself is indented, we ignore spaces up to the level of the indent
-    " " <> in if indentation > 0 ->
-      slurp_verbatim_line(in, indentation - 1, acc)
-    "\n" <> in -> #(acc <> "\n", in)
-    _ ->
-      case string.pop_grapheme(in) {
-        Ok(#(c, in)) -> slurp_verbatim_line(in, 0, acc <> c)
-        Error(_) -> #(acc, "")
-      }
+  case splitter.split(splitters.verbatim_line_end, in) {
+    #(before, "\n", in) -> #(acc <> before <> "\n", in)
+    #("", " ", in) if indentation > 0 ->
+      slurp_verbatim_line(in, indentation - 1, acc, splitters)
+    #(before, split, in) ->
+      slurp_verbatim_line(in, indentation, acc <> before <> split, splitters)
   }
 }
 
@@ -369,21 +413,15 @@ fn parse_codeblock_end(in: String, delim: String, count: Int) -> Option(String) 
 
 fn parse_codeblock_language(
   in: String,
+  splitters: Splitters,
   language: String,
 ) -> Option(#(Option(String), String)) {
-  // TODO: use split_once on the newline
-  case in {
+  case splitter.split(splitters.codeblock_language, in) {
     // A language specifier cannot contain a backtick
-    "`" <> _ -> None
-
-    "" -> Some(#(None, in))
-    "\n" <> in if language == "" -> Some(#(None, in))
-    "\n" <> in -> Some(#(Some(language), in))
-    _ ->
-      case string.pop_grapheme(in) {
-        Ok(#(c, in)) -> parse_codeblock_language(in, language <> c)
-        Error(_) -> Some(#(None, in))
-      }
+    #(_, "`", _) -> None
+    #(a, "\n", _) if a == "" && language == "" -> Some(#(None, in))
+    #(a, "\n", in) -> Some(#(Some(language <> a), in))
+    _ -> Some(#(None, in))
   }
 }
 
@@ -418,6 +456,7 @@ fn parse_ref_value(
 fn parse_footnote_def(
   in: String,
   refs: Refs,
+  splitters: Splitters,
   id: String,
 ) -> Option(#(String, List(Container), Refs, String)) {
   case in {
@@ -429,10 +468,11 @@ fn parse_footnote_def(
         // However, if there is a new line directly following the beginning of the block,
         // we need to check the indentation to be sure that it is not an empty block
         "\n" <> _ -> parse_block
-        _ -> fn(in, refs, ast, attrs, required_spaces) {
+        _ -> fn(in, refs, splitters, ast, attrs, required_spaces) {
           parse_block_after_indent_checked(
             in,
             refs,
+            splitters,
             ast,
             attrs,
             required_spaces,
@@ -440,13 +480,14 @@ fn parse_footnote_def(
           )
         }
       }
-      let #(block, refs, rest) = block_parser(in, refs, [], dict.new(), 1)
+      let #(block, refs, rest) =
+        block_parser(in, refs, splitters, [], dict.new(), 1)
       Some(#(id, block, refs, rest))
     }
     "" | "]" <> _ | "\n" <> _ -> None
     _ ->
       case string.pop_grapheme(in) {
-        Ok(#(c, in)) -> parse_footnote_def(in, refs, id <> c)
+        Ok(#(c, in)) -> parse_footnote_def(in, refs, splitters, id <> c)
         Error(_) -> None
       }
   }
@@ -559,13 +600,15 @@ fn parse_attributes_end(
 fn parse_heading(
   in: String,
   refs: Refs,
+  splitters: Splitters,
   attrs: Dict(String, String),
 ) -> #(Container, Refs, String) {
   case heading_level(in, 1) {
     Some(#(level, in)) -> {
       let in = drop_spaces(in)
       let #(inline_in, in) = take_heading_chars(in, level, "")
-      let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
+      let #(inline, inline_in_remaining) =
+        parse_inline(inline_in, splitters, "", [])
       let text = take_inline_text(inline, "")
       let #(refs, attrs) = case id_sanitise(text) {
         "" -> #(refs, attrs)
@@ -586,7 +629,7 @@ fn parse_heading(
     }
 
     None -> {
-      let #(p, in) = parse_paragraph("#" <> in, attrs)
+      let #(p, in) = parse_paragraph("#" <> in, attrs, splitters)
       #(p, refs, in)
     }
   }
@@ -641,76 +684,87 @@ fn take_heading_chars_newline_hash(
 
 fn parse_inline(
   in: String,
+  splitters: Splitters,
   text: String,
   acc: List(Inline),
 ) -> #(List(Inline), String) {
-  case in {
-    "" if text == "" -> #(list.reverse(acc), "")
-    "" -> parse_inline("", "", [Text(text), ..acc])
+  case splitter.split(splitters.inline, in) {
+    // End of the input
+    #(text2, "", "") ->
+      case text <> text2 {
+        "" -> #(list.reverse(acc), "")
+        text -> #(list.reverse([Text(text), ..acc]), "")
+      }
 
-    // Escapes
-    "\\!" <> in -> parse_inline(in, text <> "!", acc)
-    "\\\"" <> in -> parse_inline(in, text <> "\"", acc)
-    "\\#" <> in -> parse_inline(in, text <> "#", acc)
-    "\\$" <> in -> parse_inline(in, text <> "$", acc)
-    "\\%" <> in -> parse_inline(in, text <> "%", acc)
-    "\\&" <> in -> parse_inline(in, text <> "&", acc)
-    "\\'" <> in -> parse_inline(in, text <> "'", acc)
-    "\\(" <> in -> parse_inline(in, text <> "(", acc)
-    "\\)" <> in -> parse_inline(in, text <> ")", acc)
-    "\\*" <> in -> parse_inline(in, text <> "*", acc)
-    "\\+" <> in -> parse_inline(in, text <> "+", acc)
-    "\\," <> in -> parse_inline(in, text <> ",", acc)
-    "\\-" <> in -> parse_inline(in, text <> "-", acc)
-    "\\." <> in -> parse_inline(in, text <> ".", acc)
-    "\\/" <> in -> parse_inline(in, text <> "/", acc)
-    "\\:" <> in -> parse_inline(in, text <> ":", acc)
-    "\\;" <> in -> parse_inline(in, text <> ";", acc)
-    "\\<" <> in -> parse_inline(in, text <> "<", acc)
-    "\\=" <> in -> parse_inline(in, text <> "=", acc)
-    "\\>" <> in -> parse_inline(in, text <> ">", acc)
-    "\\?" <> in -> parse_inline(in, text <> "?", acc)
-    "\\@" <> in -> parse_inline(in, text <> "@", acc)
-    "\\[" <> in -> parse_inline(in, text <> "[", acc)
-    "\\\\" <> in -> parse_inline(in, text <> "\\", acc)
-    "\\]" <> in -> parse_inline(in, text <> "]", acc)
-    "\\^" <> in -> parse_inline(in, text <> "^", acc)
-    "\\_" <> in -> parse_inline(in, text <> "_", acc)
-    "\\`" <> in -> parse_inline(in, text <> "`", acc)
-    "\\{" <> in -> parse_inline(in, text <> "{", acc)
-    "\\|" <> in -> parse_inline(in, text <> "|", acc)
-    "\\}" <> in -> parse_inline(in, text <> "}", acc)
-    "\\~" <> in -> parse_inline(in, text <> "~", acc)
+    // // Escapes
+    #(a, "\\", in) -> {
+      let text = text <> a
+      case in {
+        "!" as e <> in
+        | "\"" as e <> in
+        | "#" as e <> in
+        | "$" as e <> in
+        | "%" as e <> in
+        | "&" as e <> in
+        | "'" as e <> in
+        | "(" as e <> in
+        | ")" as e <> in
+        | "*" as e <> in
+        | "+" as e <> in
+        | "," as e <> in
+        | "-" as e <> in
+        | "." as e <> in
+        | "/" as e <> in
+        | ":" as e <> in
+        | ";" as e <> in
+        | "<" as e <> in
+        | "=" as e <> in
+        | ">" as e <> in
+        | "?" as e <> in
+        | "@" as e <> in
+        | "[" as e <> in
+        | "\\" as e <> in
+        | "]" as e <> in
+        | "^" as e <> in
+        | "_" as e <> in
+        | "`" as e <> in
+        | "{" as e <> in
+        | "|" as e <> in
+        | "}" as e <> in
+        | "~" as e <> in -> parse_inline(in, splitters, text <> e, acc)
 
-    "\\\n" <> in -> parse_inline(in, "", [Linebreak, Text(text), ..acc])
-    "\\ " <> in -> parse_inline(in, text <> "&nbsp;", acc)
+        "\n" <> in ->
+          parse_inline(in, splitters, "", [Linebreak, Text(text), ..acc])
 
-    "\\" -> parse_inline("", text <> "\\", acc)
+        " " <> in -> parse_inline(in, splitters, text <> "&nbsp;", acc)
 
-    // Emphasis and strong
-    "_ " as start <> in
-    | "_\t" as start <> in
-    | "_\n" as start <> in
-    | "* " as start <> in
-    | "*\t" as start <> in
-    | "*\n" as start <> in -> parse_inline(in, text <> start, acc)
-
-    "_" as start <> rest | "*" as start <> rest -> {
-      case parse_emphasis(rest, start) {
-        None -> parse_inline(rest, text <> start, acc)
-        Some(#(inner, in)) -> {
-          let item = case start {
-            "*" -> Strong(inner)
-            _ -> Emphasis(inner)
-          }
-          parse_inline(in, "", [item, Text(text), ..acc])
-        }
+        _other -> parse_inline(in, splitters, text <> "\\", acc)
       }
     }
 
-    "[^" <> rest -> {
+    #(a, "_" as start, in) | #(a, "*" as start, in) -> {
+      let text = text <> a
+      case in {
+        " " as b <> in | "\t" as b <> in | "\n" as b <> in ->
+          parse_inline(in, splitters, text <> start <> b, acc)
+        _ ->
+          case parse_emphasis(in, splitters, start) {
+            None -> parse_inline(in, splitters, text <> start, acc)
+            Some(#(inner, in)) -> {
+              let item = case start {
+                "*" -> Strong(inner)
+                _ -> Emphasis(inner)
+              }
+              parse_inline(in, splitters, "", [item, Text(text), ..acc])
+            }
+          }
+      }
+    }
+
+    #(a, "[^", rest) -> {
+      let text = text <> a
       case parse_footnote(rest, "^") {
-        None -> parse_inline(rest, text <> "[^", acc)
+        None -> parse_inline(rest, splitters, text <> "[^", acc)
         // if this is actually a definition instead of a reference, return early
         // This applies in situations such as the following:
         // ```
@@ -723,38 +777,46 @@ fn parse_inline(
         )
         Some(#(_footnote, ":" <> _)) -> #(list.reverse(acc), in)
         Some(#(footnote, in)) ->
-          parse_inline(in, "", [footnote, Text(text), ..acc])
+          parse_inline(in, splitters, "", [footnote, Text(text), ..acc])
       }
     }
 
     // Link and image
-    "[" <> in -> {
-      case parse_link(in, Link) {
-        None -> parse_inline(in, text <> "[", acc)
-        Some(#(link, in)) -> parse_inline(in, "", [link, Text(text), ..acc])
+    #(a, "[", in) -> {
+      let text = text <> a
+      case parse_link(in, splitters, Link) {
+        None -> parse_inline(in, splitters, text <> "[", acc)
+        Some(#(link, in)) ->
+          parse_inline(in, splitters, "", [link, Text(text), ..acc])
       }
     }
-    "![" <> in -> {
-      case parse_link(in, Image) {
-        None -> parse_inline(in, text <> "![", acc)
-        Some(#(image, in)) -> parse_inline(in, "", [image, Text(text), ..acc])
+
+    #(a, "![", in) -> {
+      let text = text <> a
+      case parse_link(in, splitters, Image) {
+        None -> parse_inline(in, splitters, text <> "![", acc)
+        Some(#(image, in)) ->
+          parse_inline(in, splitters, "", [image, Text(text), ..acc])
       }
     }
 
     // Code
-    "`" <> in -> {
+    #(a, "`", in) -> {
+      let text = text <> a
       let #(code, in) = parse_code(in, 1)
-      parse_inline(in, "", [code, Text(text), ..acc])
+      parse_inline(in, splitters, "", [code, Text(text), ..acc])
     }
 
-    "\n" <> in ->
+    #(a, "\n", in) -> {
+      let text = text <> a
       drop_spaces(in)
-      |> parse_inline(text <> "\n", acc)
+      |> parse_inline(splitters, text <> "\n", acc)
+    }
 
-    _ ->
-      case string.pop_grapheme(in) {
-        Ok(#(c, in)) -> parse_inline(in, text <> c, acc)
-        Error(_) -> parse_inline("", "", [Text(text), ..acc])
+    #(text2, text3, in) ->
+      case text <> text2 <> text3 {
+        "" -> #(list.reverse(acc), in)
+        text -> #(list.reverse([Text(text), ..acc]), in)
       }
   }
 }
@@ -818,12 +880,17 @@ fn parse_code_end(
   }
 }
 
-fn parse_emphasis(in: String, close: String) -> Option(#(List(Inline), String)) {
+fn parse_emphasis(
+  in: String,
+  splitters: Splitters,
+  close: String,
+) -> Option(#(List(Inline), String)) {
   case take_emphasis_chars(in, close, "") {
     None -> None
 
     Some(#(inline_in, in)) -> {
-      let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
+      let #(inline, inline_in_remaining) =
+        parse_inline(inline_in, splitters, "", [])
       Some(#(inline, inline_in_remaining <> in))
     }
   }
@@ -860,14 +927,16 @@ fn take_emphasis_chars(
 
 fn parse_link(
   in: String,
+  splitters: Splitters,
   to_inline: fn(List(Inline), Destination) -> Inline,
 ) -> Option(#(Inline, String)) {
-  case take_link_chars(in, "") {
+  case take_link_chars(in, "", splitters) {
     // This wasn't a link, it was just a `[` in the text
     None -> None
 
     Some(#(inline_in, ref, in)) -> {
-      let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
+      let #(inline, inline_in_remaining) =
+        parse_inline(inline_in, splitters, "", [])
       let ref = case ref {
         Reference("") -> Reference(take_inline_text(inline, ""))
         ref -> ref
@@ -880,15 +949,16 @@ fn parse_link(
 fn take_link_chars(
   in: String,
   inline_in: String,
+  splitters: Splitters,
 ) -> Option(#(String, Destination, String)) {
   case string.split_once(in, "]") {
     Ok(#(before, "[" <> in)) ->
-      take_link_chars_destination(in, False, inline_in <> before, "")
+      take_link_chars_destination(in, False, inline_in <> before, splitters, "")
 
     Ok(#(before, "(" <> in)) ->
-      take_link_chars_destination(in, True, inline_in <> before, "")
+      take_link_chars_destination(in, True, inline_in <> before, splitters, "")
 
-    Ok(#(before, in)) -> take_link_chars(in, inline_in <> before)
+    Ok(#(before, in)) -> take_link_chars(in, inline_in <> before, splitters)
 
     // This wasn't a link, it was just a `[..]` in the text
     Error(_) -> None
@@ -899,24 +969,25 @@ fn take_link_chars_destination(
   in: String,
   is_url: Bool,
   inline_in: String,
+  splitters: Splitters,
   acc: String,
 ) -> Option(#(String, Destination, String)) {
-  case in {
-    "" -> None
+  case splitter.split(splitters.link_destination, in) {
+    #(a, ")", in) if is_url -> Some(#(inline_in, Url(acc <> a), in))
+    #(a, "]", in) if !is_url -> Some(#(inline_in, Reference(acc <> a), in))
 
-    ")" <> in if is_url -> Some(#(inline_in, Url(acc), in))
-    "]" <> in if !is_url -> Some(#(inline_in, Reference(acc), in))
+    #(a, "\n", rest) if is_url ->
+      take_link_chars_destination(rest, is_url, inline_in, splitters, acc <> a)
+    #(a, "\n", rest) if !is_url ->
+      take_link_chars_destination(
+        rest,
+        is_url,
+        inline_in,
+        splitters,
+        acc <> a <> " ",
+      )
 
-    "\n" <> rest if is_url ->
-      take_link_chars_destination(rest, is_url, inline_in, acc)
-    "\n" <> rest if !is_url ->
-      take_link_chars_destination(rest, is_url, inline_in, acc <> " ")
-    _ ->
-      case string.pop_grapheme(in) {
-        Ok(#(c, rest)) ->
-          take_link_chars_destination(rest, is_url, inline_in, acc <> c)
-        Error(_) -> None
-      }
+    _ -> None
   }
 }
 
@@ -970,9 +1041,11 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
 fn parse_paragraph(
   in: String,
   attrs: Dict(String, String),
+  splitters: Splitters,
 ) -> #(Container, String) {
   let #(inline_in, in) = take_paragraph_chars(in)
-  let #(inline, inline_in_remaining) = parse_inline(inline_in, "", [])
+  let #(inline, inline_in_remaining) =
+    parse_inline(inline_in, splitters, "", [])
   #(Paragraph(attrs, inline), inline_in_remaining <> in)
 }
 
@@ -1048,7 +1121,7 @@ fn containers_to_html_with_last_paragraph(
         Paragraph(attrs, inlines) ->
           html
           |> open_tag("p", attrs)
-          |> inlines_to_html(inlines, refs)
+          |> inlines_to_html(inlines, refs, TrimLast)
           |> apply()
           |> close_tag("p")
         _ ->
@@ -1090,7 +1163,7 @@ fn container_to_html(
     Paragraph(attrs, inlines) -> {
       html
       |> open_tag("p", attrs)
-      |> inlines_to_html(inlines, refs)
+      |> inlines_to_html(inlines, refs, TrimLast)
       |> close_tag("p")
     }
 
@@ -1111,7 +1184,7 @@ fn container_to_html(
       let tag = "h" <> int.to_string(level)
       html
       |> open_tag(tag, attrs)
-      |> inlines_to_html(inlines, refs)
+      |> inlines_to_html(inlines, refs, TrimLast)
       |> close_tag(tag)
     }
 
@@ -1236,20 +1309,29 @@ fn close_tag(initial_html: GeneratedHtml, tag: String) -> GeneratedHtml {
   GeneratedHtml(..initial_html, html: initial_html.html <> "</" <> tag <> ">")
 }
 
+type Trim {
+  NoTrim
+  TrimLast
+}
+
 fn inlines_to_html(
   html: GeneratedHtml,
   inlines: List(Inline),
   refs: Refs,
+  trim: Trim,
 ) -> GeneratedHtml {
   case inlines {
     [] -> html
-    [inline, ..rest] -> {
-      let html =
-        html
-        |> inline_to_html(inline, refs)
-        |> inlines_to_html(rest, refs)
 
-      GeneratedHtml(..html, html: string.trim_end(html.html))
+    [inline] if trim == TrimLast -> {
+      html
+      |> inline_to_html(inline, refs, trim)
+    }
+
+    [inline, ..rest] -> {
+      html
+      |> inline_to_html(inline, refs, NoTrim)
+      |> inlines_to_html(rest, refs, trim)
     }
   }
 }
@@ -1258,6 +1340,7 @@ fn inline_to_html(
   html: GeneratedHtml,
   inline: Inline,
   refs: Refs,
+  trim: Trim,
 ) -> GeneratedHtml {
   case inline {
     Linebreak -> {
@@ -1266,24 +1349,27 @@ fn inline_to_html(
       |> append_to_html("\n")
     }
     Text(text) -> {
-      append_to_html(html, text)
+      case trim {
+        NoTrim -> append_to_html(html, text)
+        TrimLast -> append_to_html(html, string.trim_end(text))
+      }
     }
     Strong(inlines) -> {
       html
       |> open_tag("strong", dict.new())
-      |> inlines_to_html(inlines, refs)
+      |> inlines_to_html(inlines, refs, trim)
       |> close_tag("strong")
     }
     Emphasis(inlines) -> {
       html
       |> open_tag("em", dict.new())
-      |> inlines_to_html(inlines, refs)
+      |> inlines_to_html(inlines, refs, trim)
       |> close_tag("em")
     }
     Link(text, destination) -> {
       html
       |> open_tag("a", destination_attribute("href", destination, refs))
-      |> inlines_to_html(text, refs)
+      |> inlines_to_html(text, refs, trim)
       |> close_tag("a")
     }
     Image(text, destination) -> {
