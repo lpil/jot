@@ -11,6 +11,7 @@ packages = [
   { name = "gleave", version = "1.0.0", build_tools = ["gleam"], requirements = [], otp_app = "gleave", source = "hex", outer_checksum = "EBEB0DF9C764A6CB22623FF6F03A0BC978D75225303F3BBDEEB705A2DD700D0D" },
   { name = "gleeunit", version = "1.3.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "0E6C83834BA65EDCAAF4FE4FB94AC697D9262D83E6F58A750D63C9F6C8A9D9FF" },
   { name = "simplifile", version = "2.2.1", build_tools = ["gleam"], requirements = ["filepath", "gleam_stdlib"], otp_app = "simplifile", source = "hex", outer_checksum = "C88E0EE2D509F6D86EB55161D631657675AA7684DAB83822F7E59EB93D9A60E3" },
+  { name = "splitter", version = "1.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "splitter", source = "hex", outer_checksum = "128FC521EE33B0012E3E64D5B55168586BC1B9C8D7B0D0CA223B68B0D770A547" },
 ]
 
 [requirements]
@@ -20,3 +21,4 @@ gleam_stdlib = { version = ">= 0.54.0 and < 2.0.0" }
 gleave = { version = ">= 1.0.0 and < 2.0.0" }
 gleeunit = { version = ">= 1.0.0 and < 2.0.0" }
 simplifile = { version = ">= 2.0.0 and < 3.0.0" }
+splitter = { version = ">= 1.0.0 and < 2.0.0" }

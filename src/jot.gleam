@@ -7,7 +7,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import jot/internal/splitter.{type Splitter}
+import splitter.{type Splitter}
 
 pub type Document {
   Document(
