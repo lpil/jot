@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.2.0 - 2025-03-31
+
+- The performance of `parse` and `to_html` has been greatly improved!
+
 ## v2.1.0 - 2025-03-24
 
 - Added support for raw blocks.
