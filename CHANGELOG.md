@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.0.0 - 2025-04-01
+
+- Added support for bullet lists without nesting.
+
 ## v2.2.0 - 2025-03-31
 
 - The performance of `parse` and `to_html` has been greatly improved!

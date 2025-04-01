@@ -1,6 +1,6 @@
 name = "jot"
-version = "2.2.0"
-gleam = ">= 0.39.0"
+version = "3.0.0"
+gleam = ">= 1.4.0"
 description = "A parser for Djot, a markdown-like language"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "lpil", repo = "jot" }

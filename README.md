@@ -37,6 +37,7 @@ Further documentation can be found at <https://hexdocs.pm/jot>.
 This project is a work in progress. So far it supports:
 
 - [x] Block attributes
+- [x] Bullet lists without nesting
 - [x] Code blocks
 - [x] Emphasis and strong
 - [x] Footnotes

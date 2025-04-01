@@ -44,6 +44,7 @@ pub type Container {
     content: String,
   )
   RawBlock(content: String)
+  BulletList(layout: ListLayout, style: String, items: List(List(Container)))
 }
 
 pub type Inline {
@@ -55,6 +56,11 @@ pub type Inline {
   Strong(content: List(Inline))
   Footnote(reference: String)
   Code(content: String)
+}
+
+pub type ListLayout {
+  Tight
+  Loose
 }
 
 pub type Destination {
@@ -144,15 +150,16 @@ fn parse_document_content(
   let in = drop_lines(in)
   let #(in, spaces_count) = count_drop_spaces(in, 0)
 
-  parse_containers(
-    in,
-    refs,
-    splitters,
-    ast,
-    attrs,
-    spaces_count,
-    parse_document_content,
-  )
+  let #(in, refs, container, attrs) =
+    parse_container(in, refs, splitters, attrs, spaces_count)
+  let ast = case container {
+    None -> ast
+    Some(container) -> [container, ..ast]
+  }
+  case in {
+    "" -> #(list.reverse(ast), refs, in)
+    _ -> parse_document_content(in, refs, splitters, ast, attrs)
+  }
 }
 
 /// Parse a block of Djot that ends once the content is no longer indented
@@ -177,21 +184,23 @@ fn parse_block(
   required_spaces: Int,
 ) -> #(List(Container), Refs, String) {
   let in = drop_lines(in)
-  let #(in, spaces_count) = count_drop_spaces(in, 0)
+  let #(in, indentation) = count_drop_spaces(in, 0)
 
-  use <- bool.lazy_guard(spaces_count < required_spaces, fn() {
-    #(list.reverse(ast), refs, in)
-  })
-
-  parse_block_after_indent_checked(
-    in,
-    refs,
-    splitters,
-    ast,
-    attrs,
-    required_spaces,
-    spaces_count,
-  )
+  case indentation < required_spaces {
+    True -> #(list.reverse(ast), refs, in)
+    False -> {
+      let #(in, refs, container, attrs) =
+        parse_container(in, refs, splitters, attrs, indentation)
+      let ast = case container {
+        None -> ast
+        Some(container) -> [container, ..ast]
+      }
+      case in {
+        "" -> #(list.reverse(ast), refs, in)
+        _ -> parse_block(in, refs, splitters, ast, attrs, required_spaces)
+      }
+    }
+  }
 }
 
 /// This function allows us to parse the contents of a block after we know
@@ -206,71 +215,66 @@ fn parse_block_after_indent_checked(
   attrs: Dict(String, String),
   required_spaces required_spaces: Int,
   indentation indentation: Int,
-) {
-  parse_containers(
-    in,
-    refs,
-    splitters,
-    ast,
-    attrs,
-    indentation,
-    fn(in, refs, splitters, ast, attrs) {
-      parse_block(in, refs, splitters, ast, attrs, required_spaces)
-    },
-  )
+) -> #(List(Container), Refs, String) {
+  let #(in, refs, container, attrs) =
+    parse_container(in, refs, splitters, attrs, indentation)
+  let ast = case container {
+    None -> ast
+    Some(container) -> [container, ..ast]
+  }
+  case in {
+    "" -> #(list.reverse(ast), refs, in)
+    _ -> parse_block(in, refs, splitters, ast, attrs, required_spaces)
+  }
 }
 
-fn parse_containers(
+fn parse_container(
   in: String,
   refs: Refs,
   splitters: Splitters,
-  ast: List(Container),
   attrs: Dict(String, String),
   indentation: Int,
-  // This function is used when calling parse_containers recursively to control
-  // when to stop and to modify the input after the previous container was parsed.
-  //
-  // For example, when parsing blocks, we pass the `parse_block` function in as
-  // the parser to ensure that each container meets indentation requirements
-  // before we parse it
-  parser: fn(String, Refs, Splitters, List(Container), Dict(String, String)) ->
-    #(List(Container), Refs, String),
-) -> #(List(Container), Refs, String) {
+) -> #(String, Refs, Option(Container), Dict(String, String)) {
   case in {
-    "" -> #(list.reverse(ast), refs, "")
+    "" -> #(in, refs, None, dict.new())
+
     "{" <> in2 ->
       case parse_attributes(in2, attrs) {
         None -> {
           let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
-          parser(in, refs, splitters, [paragraph, ..ast], dict.new())
+          #(in, refs, Some(paragraph), dict.new())
         }
-        Some(#(attrs, in)) -> parser(in, refs, splitters, ast, attrs)
+        Some(#(attrs, in)) -> #(in, refs, None, attrs)
       }
 
     "#" <> in -> {
       let #(heading, refs, in) = parse_heading(in, refs, splitters, attrs)
-      parser(in, refs, splitters, [heading, ..ast], dict.new())
+      #(in, refs, Some(heading), dict.new())
     }
 
     "~" as delim <> in2 | "`" as delim <> in2 -> {
       case parse_codeblock(in2, attrs, delim, indentation, splitters) {
         None -> {
           let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
-          parser(in, refs, splitters, [paragraph, ..ast], dict.new())
+          #(in, refs, Some(paragraph), dict.new())
         }
-        Some(#(codeblock, in)) ->
-          parser(in, refs, splitters, [codeblock, ..ast], dict.new())
+        Some(#(codeblock, in)) -> #(in, refs, Some(codeblock), dict.new())
       }
     }
 
-    "-" <> in2 | "*" <> in2 -> {
-      case parse_thematic_break(1, in2) {
-        None -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
-          parser(in, refs, splitters, [paragraph, ..ast], dict.new())
+    "-" as style <> in2 | "*" as style <> in2 -> {
+      case parse_thematic_break(1, in2), in2 {
+        None, " " <> in2 | None, "\n" <> in2 -> {
+          let #(list, in) =
+            parse_bullet_list(in2, refs, attrs, style, Tight, [], splitters)
+          #(in, refs, Some(list), dict.new())
         }
-        Some(#(thematic_break, in)) -> {
-          parser(in, refs, splitters, [thematic_break, ..ast], dict.new())
+        None, _ -> {
+          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          #(in, refs, Some(paragraph), dict.new())
+        }
+        Some(#(thematic_break, in)), _ -> {
+          #(in, refs, Some(thematic_break), dict.new())
         }
       }
     }
@@ -279,12 +283,12 @@ fn parse_containers(
       case parse_footnote_def(in2, refs, splitters, "^") {
         None -> {
           let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
-          parser(in, refs, splitters, [paragraph, ..ast], dict.new())
+          #(in, refs, Some(paragraph), dict.new())
         }
         Some(#(id, footnote, refs, in)) -> {
           let refs =
             Refs(..refs, footnotes: dict.insert(refs.footnotes, id, footnote))
-          parser(in, refs, splitters, ast, dict.new())
+          #(in, refs, None, dict.new())
         }
       }
     }
@@ -293,18 +297,18 @@ fn parse_containers(
       case parse_ref_def(in2, "") {
         None -> {
           let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
-          parser(in, refs, splitters, [paragraph, ..ast], dict.new())
+          #(in, refs, Some(paragraph), dict.new())
         }
         Some(#(id, url, in)) -> {
           let refs = Refs(..refs, urls: dict.insert(refs.urls, id, url))
-          parser(in, refs, splitters, ast, dict.new())
+          #(in, refs, None, dict.new())
         }
       }
     }
 
     _ -> {
       let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
-      parser(in, refs, splitters, [paragraph, ..ast], dict.new())
+      #(in, refs, Some(paragraph), dict.new())
     }
   }
 }
@@ -1049,6 +1053,63 @@ fn parse_paragraph(
   #(Paragraph(attrs, inline), inline_in_remaining <> in)
 }
 
+fn parse_bullet_list(
+  in: String,
+  refs: Refs,
+  attrs: Dict(String, String),
+  style: String,
+  layout: ListLayout,
+  items: List(List(Container)),
+  splitters: Splitters,
+) -> #(Container, String) {
+  let #(inline_in, in, end) = take_list_item_chars(in, "", style)
+  let item = parse_list_item(inline_in, refs, attrs, splitters, [])
+  let items = [item, ..items]
+  case end {
+    True -> #(BulletList(layout:, style:, items: list.reverse(items)), in)
+    False -> parse_bullet_list(in, refs, attrs, style, layout, items, splitters)
+  }
+}
+
+fn parse_list_item(
+  in: String,
+  refs: Refs,
+  attrs: Dict(String, String),
+  splitters: Splitters,
+  children: List(Container),
+) -> List(Container) {
+  let #(in, refs, container, attrs) =
+    parse_container(in, refs, splitters, attrs, 0)
+  let children = case container {
+    None -> children
+    Some(container) -> [container, ..children]
+  }
+  case in {
+    "" -> list.reverse(children)
+    _ -> parse_list_item(in, refs, attrs, splitters, children)
+  }
+}
+
+fn take_list_item_chars(
+  in: String,
+  acc: String,
+  style: String,
+) -> #(String, String, Bool) {
+  let #(in, acc) = case string.split_once(in, "\n") {
+    Ok(#(content, in)) -> #(in, acc <> content)
+    Error(_) -> #("", acc <> in)
+  }
+
+  case in {
+    " " <> in -> take_list_item_chars(in, acc <> "\n ", style)
+    "- " <> in if style == "-" -> #(acc, in, False)
+    "\n- " <> in if style == "-" -> #(acc, in, False)
+    "* " <> in if style == "*" -> #(acc, in, False)
+    "\n* " <> in if style == "*" -> #(acc, in, False)
+    _ -> #(acc, in, True)
+  }
+}
+
 fn take_paragraph_chars(in: String) -> #(String, String) {
   case string.split_once(in, "\n\n") {
     Ok(#(content, in)) -> #(content, in)
@@ -1189,6 +1250,14 @@ fn container_to_html(
     }
 
     RawBlock(content) -> GeneratedHtml(..html, html: html.html <> content)
+
+    BulletList(layout:, style: _, items:) -> {
+      html
+      |> open_tag("ul", dict.new())
+      |> append_to_html("\n")
+      |> list_items_to_html(layout, items, refs)
+      |> close_tag("ul")
+    }
   }
   append_to_html(new_html, "\n")
 }
@@ -1312,6 +1381,39 @@ fn close_tag(initial_html: GeneratedHtml, tag: String) -> GeneratedHtml {
 type Trim {
   NoTrim
   TrimLast
+}
+
+fn list_items_to_html(
+  html: GeneratedHtml,
+  layout: ListLayout,
+  items: List(List(Container)),
+  refs: Refs,
+) -> GeneratedHtml {
+  case items {
+    [] -> html
+
+    [[Paragraph(_, inlines)], ..rest] if layout == Tight -> {
+      html
+      |> open_tag("li", dict.new())
+      |> append_to_html("\n")
+      |> inlines_to_html(inlines, refs, TrimLast)
+      |> append_to_html("\n")
+      |> close_tag("li")
+      |> append_to_html("\n")
+      |> list_items_to_html(layout, rest, refs)
+    }
+
+    [item, ..rest] -> {
+      html
+      |> open_tag("li", dict.new())
+      |> append_to_html("\n")
+      |> containers_to_html(item, refs, _)
+      |> append_to_html("\n")
+      |> close_tag("li")
+      |> append_to_html("\n")
+      |> list_items_to_html(layout, rest, refs)
+    }
+  }
 }
 
 fn inlines_to_html(
