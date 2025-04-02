@@ -80,6 +80,12 @@ type Refs {
 /// `parse` function to convert Djot to a tree of records instead. You can then
 /// traverse this tree and turn it into HTML yourself.
 ///
+/// # Security
+///
+/// This does not escape the content of raw blocks! If you use this with
+/// user-input you likely need to escape raw blocks to prevent
+/// cross-site-scripting (XSS) attacks.
+///
 pub fn to_html(djot: String) -> String {
   djot
   |> parse
@@ -1126,6 +1132,8 @@ fn take_paragraph_chars(in: String) -> #(String, String) {
 }
 
 /// Convert a document tree into a string of HTML.
+///
+/// See `to_html` for further documentation.
 ///
 pub fn document_to_html(document: Document) -> String {
   let generated_html =
