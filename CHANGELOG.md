@@ -1,5 +1,10 @@
 # Changelog
 
+## v4.0.0 - 2025-04-02
+
+- Added escaping text content.
+- Added `NonBreakingSpace` inline variant.
+
 ## v3.0.0 - 2025-04-01
 
 - Added support for bullet lists without nesting.

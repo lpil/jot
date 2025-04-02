@@ -8,7 +8,7 @@ A parser for [Djot][djot], a markdown-like language.
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/jot/)
 
 ```sh
-gleam add jot@3
+gleam add jot@4
 ```
 ```gleam
 import jot
@@ -39,6 +39,7 @@ This project is a work in progress. So far it supports:
 - [x] Block attributes
 - [x] Bullet lists without nesting
 - [x] Code blocks
+- [x] Content escaping
 - [x] Emphasis and strong
 - [x] Footnotes
 - [x] Headings

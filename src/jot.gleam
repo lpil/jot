@@ -7,6 +7,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import houdini
 import splitter.{type Splitter}
 
 pub type Document {
@@ -49,6 +50,7 @@ pub type Container {
 
 pub type Inline {
   Linebreak
+  NonBreakingSpace
   Text(String)
   Link(content: List(Inline), destination: Destination)
   Image(content: List(Inline), destination: Destination)
@@ -740,7 +742,8 @@ fn parse_inline(
         "\n" <> in ->
           parse_inline(in, splitters, "", [Linebreak, Text(text), ..acc])
 
-        " " <> in -> parse_inline(in, splitters, text <> "&nbsp;", acc)
+        " " <> in ->
+          parse_inline(in, splitters, "", [NonBreakingSpace, Text(text), ..acc])
 
         _other -> parse_inline(in, splitters, text <> "\\", acc)
       }
@@ -1028,6 +1031,7 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
     [] -> acc
     [first, ..rest] ->
       case first {
+        NonBreakingSpace -> take_inline_text(rest, acc <> " ")
         Text(text) | Code(text) -> take_inline_text(rest, acc <> text)
         Strong(inlines) | Emphasis(inlines) ->
           take_inline_text(list.append(inlines, rest), acc)
@@ -1236,7 +1240,7 @@ fn container_to_html(
       html
       |> open_tag("pre", dict.new())
       |> open_tag("code", code_attrs)
-      |> append_to_html(content)
+      |> append_to_html(houdini.escape(content))
       |> close_tag("code")
       |> close_tag("pre")
     }
@@ -1445,12 +1449,16 @@ fn inline_to_html(
   trim: Trim,
 ) -> GeneratedHtml {
   case inline {
+    NonBreakingSpace -> {
+      html |> append_to_html("&nbsp;")
+    }
     Linebreak -> {
       html
       |> open_tag("br", dict.new())
       |> append_to_html("\n")
     }
     Text(text) -> {
+      let text = houdini.escape(text)
       case trim {
         NoTrim -> append_to_html(html, text)
         TrimLast -> append_to_html(html, string.trim_end(text))
@@ -1479,10 +1487,11 @@ fn inline_to_html(
       |> open_tag(
         "img",
         destination_attribute("src", destination, refs)
-          |> dict.insert("alt", take_inline_text(text, "")),
+          |> dict.insert("alt", houdini.escape(take_inline_text(text, ""))),
       )
     }
     Code(content) -> {
+      let content = houdini.escape(content)
       html
       |> open_tag("code", dict.new())
       |> append_to_html(content)
@@ -1547,10 +1556,10 @@ fn destination_attribute(
 ) -> Dict(String, String) {
   let dict = dict.new()
   case destination {
-    Url(url) -> dict.insert(dict, key, url)
+    Url(url) -> dict.insert(dict, key, houdini.escape(url))
     Reference(id) ->
       case dict.get(refs.urls, id) {
-        Ok(url) -> dict.insert(dict, key, url)
+        Ok(url) -> dict.insert(dict, key, houdini.escape(url))
         _ -> dict
       }
   }

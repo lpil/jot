@@ -1,0 +1,54 @@
+````
+<h1>Hello!</h1>
+.
+<p>&lt;h1&gt;Hello!&lt;/h1&gt;</p>
+````
+
+````
+`<h1>Hello!</h1>`
+.
+<p><code>&lt;h1&gt;Hello!&lt;/h1&gt;</code></p>
+````
+
+````
+```
+<h1>Hello!</h1>
+```
+.
+<pre><code>&lt;h1&gt;Hello!&lt;/h1&gt;
+</code></pre>
+````
+
+````
+[<h1>Hello!</h1>](<h1>Hello!</h1>)
+.
+<p><a href="&lt;h1&gt;Hello!&lt;/h1&gt;">&lt;h1&gt;Hello!&lt;/h1&gt;</a></p>
+````
+
+````
+[<h1>Hello!</h1>](<h1>Hello!</h1>)
+.
+<p><a href="&lt;h1&gt;Hello!&lt;/h1&gt;">&lt;h1&gt;Hello!&lt;/h1&gt;</a></p>
+````
+
+````
+![<h1>Hello!</h1>](<h1>Hello!</h1>)
+.
+<p><img alt="&lt;h1&gt;Hello!&lt;/h1&gt;" src="&lt;h1&gt;Hello!&lt;/h1&gt;"></p>
+````
+
+````
+test[^a].
+
+[^a]: <h1>Hello!</h1>
+.
+<p>test<a id="fnref1" href="#fn1" role="doc-noteref"><sup>1</sup></a>.</p>
+<section role="doc-endnotes">
+<hr>
+<ol>
+<li id="fn1">
+<p>&lt;h1&gt;Hello!&lt;/h1&gt;<a href="#fnref1" role="doc-backlink">↩︎</a></p>
+</li>
+</ol>
+</section>
+````
