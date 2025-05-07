@@ -846,7 +846,7 @@ fn parse_inline(
     #(a, "$$`", in) -> {
       let text = text <> a
       case parse_math(in, splitters, True) {
-        None -> parse_inline(in, splitters, text <> "$`", acc)
+        None -> parse_inline(in, splitters, text <> "$$`", acc)
         Some(#(math, in)) ->
           parse_inline(in, splitters, "", [math, Text(text), ..acc])
       }
