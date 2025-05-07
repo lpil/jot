@@ -58,6 +58,8 @@ pub type Inline {
   Strong(content: List(Inline))
   Footnote(reference: String)
   Code(content: String)
+  MathInline(content: String)
+  MathDisplay(content: String)
 }
 
 pub type ListLayout {
@@ -98,6 +100,7 @@ type Splitters {
     codeblock_language: Splitter,
     inline: Splitter,
     link_destination: Splitter,
+    math_end: Splitter,
   )
 }
 
@@ -111,8 +114,11 @@ pub fn parse(djot: String) -> Document {
     Splitters(
       verbatim_line_end: splitter.new([" ", "\n"]),
       codeblock_language: splitter.new(["`", "\n"]),
-      inline: splitter.new(["\\", "_", "*", "[^", "[", "![", "`", "\n"]),
+      inline: splitter.new([
+        "\\", "_", "*", "[^", "[", "![", "$$`", "$`", "`", "\n",
+      ]),
       link_destination: splitter.new([")", "]", "\n"]),
+      math_end: splitter.new(["`"]),
     )
   let refs = Refs(dict.new(), dict.new())
 
@@ -474,7 +480,7 @@ fn parse_footnote_def(
   case in {
     "]:" <> in -> {
       let #(in, spaces_count) = count_drop_spaces(in, 0)
-      // Because this is the beginning of the block, we don't have to make sure 
+      // Because this is the beginning of the block, we don't have to make sure
       // it is properly indented, so we might be able to skip that process.
       let block_parser = case in {
         // However, if there is a new line directly following the beginning of the block,
@@ -826,12 +832,41 @@ fn parse_inline(
       |> parse_inline(splitters, text <> "\n", acc)
     }
 
+    // MathInline
+    #(a, "$`", in) -> {
+      let text = text <> a
+      let #(math, in) = parse_math(in, splitters, False)
+      parse_inline(in, splitters, "", [math, Text(text), ..acc])
+    }
+
+    // Display MathInline
+    #(a, "$$`", in) -> {
+      let text = text <> a
+      let #(math, in) = parse_math(in, splitters, True)
+      parse_inline(in, splitters, "", [math, Text(text), ..acc])
+    }
+
     #(text2, text3, in) ->
       case text <> text2 <> text3 {
         "" -> #(list.reverse(acc), in)
         text -> #(list.reverse([Text(text), ..acc]), in)
       }
   }
+}
+
+fn parse_math(
+  in: String,
+  splitters: Splitters,
+  display: Bool,
+) -> #(Inline, String) {
+  let #(latex, _, rest) = splitter.split(splitters.math_end, in)
+
+  let math = case display {
+    True -> MathDisplay(latex)
+    False -> MathInline(latex)
+  }
+
+  #(math, rest)
 }
 
 fn parse_code(in: String, count: Int) -> #(Inline, String) {
@@ -1038,7 +1073,8 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
     [first, ..rest] ->
       case first {
         NonBreakingSpace -> take_inline_text(rest, acc <> " ")
-        Text(text) | Code(text) -> take_inline_text(rest, acc <> text)
+        Text(text) | Code(text) | MathInline(text) | MathDisplay(text) ->
+          take_inline_text(rest, acc <> text)
         Strong(inlines) | Emphasis(inlines) ->
           take_inline_text(list.append(inlines, rest), acc)
         Link(nested, _) | Image(nested, _) -> {
@@ -1457,6 +1493,26 @@ fn inline_to_html(
   trim: Trim,
 ) -> GeneratedHtml {
   case inline {
+    MathInline(latex) -> {
+      let math_class = dict.from_list([#("class", "math inline")])
+
+      let latex = "\\(" <> houdini.escape(latex) <> "\\)"
+
+      html
+      |> open_tag("span", math_class)
+      |> append_to_html(latex)
+      |> close_tag("span")
+    }
+    MathDisplay(latex) -> {
+      let math_class = dict.from_list([#("class", "math display")])
+
+      let latex = "\\[" <> houdini.escape(latex) <> "\\]"
+
+      html
+      |> open_tag("span", math_class)
+      |> append_to_html(latex)
+      |> close_tag("span")
+    }
     NonBreakingSpace -> {
       html |> append_to_html("&nbsp;")
     }
