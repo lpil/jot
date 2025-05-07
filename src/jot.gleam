@@ -832,14 +832,14 @@ fn parse_inline(
       |> parse_inline(splitters, text <> "\n", acc)
     }
 
-    // MathInline
+    // Math (inline)
     #(a, "$`", in) -> {
       let text = text <> a
       let #(math, in) = parse_math(in, splitters, False)
       parse_inline(in, splitters, "", [math, Text(text), ..acc])
     }
 
-    // Display MathInline
+    // Math (display)
     #(a, "$$`", in) -> {
       let text = text <> a
       let #(math, in) = parse_math(in, splitters, True)
