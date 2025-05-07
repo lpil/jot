@@ -835,15 +835,21 @@ fn parse_inline(
     // Math (inline)
     #(a, "$`", in) -> {
       let text = text <> a
-      let #(math, in) = parse_math(in, splitters, False)
-      parse_inline(in, splitters, "", [math, Text(text), ..acc])
+      case parse_math(in, splitters, False) {
+        None -> parse_inline(in, splitters, text <> "$`", acc)
+        Some(#(math, in)) ->
+          parse_inline(in, splitters, "", [math, Text(text), ..acc])
+      }
     }
 
     // Math (display)
     #(a, "$$`", in) -> {
       let text = text <> a
-      let #(math, in) = parse_math(in, splitters, True)
-      parse_inline(in, splitters, "", [math, Text(text), ..acc])
+      case parse_math(in, splitters, True) {
+        None -> parse_inline(in, splitters, text <> "$`", acc)
+        Some(#(math, in)) ->
+          parse_inline(in, splitters, "", [math, Text(text), ..acc])
+      }
     }
 
     #(text2, text3, in) ->
@@ -858,15 +864,18 @@ fn parse_math(
   in: String,
   splitters: Splitters,
   display: Bool,
-) -> #(Inline, String) {
-  let #(latex, _, rest) = splitter.split(splitters.math_end, in)
+) -> Option(#(Inline, String)) {
+  case splitter.split(splitters.math_end, in) {
+    #(_, "", "") -> None
+    #(latex, _, rest) -> {
+      let math = case display {
+        True -> MathDisplay(latex)
+        False -> MathInline(latex)
+      }
 
-  let math = case display {
-    True -> MathDisplay(latex)
-    False -> MathInline(latex)
+      Some(#(math, rest))
+    }
   }
-
-  #(math, rest)
 }
 
 fn parse_code(in: String, count: Int) -> #(Inline, String) {
