@@ -47,6 +47,7 @@ This project is a work in progress. So far it supports:
 - [x] Inline code
 - [x] Links (inline and reference)
 - [x] Manual line breaks
+- [x] Maths
 - [x] Paragraphs
 - [x] Raw blocks
 - [x] Thematic breaks

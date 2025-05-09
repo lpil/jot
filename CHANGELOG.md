@@ -1,5 +1,9 @@
 # Changelog
 
+## v5.0.0 - 2025-05-09
+
+- Support for maths.
+
 ## v4.0.0 - 2025-04-02
 
 - Added escaping text content.
