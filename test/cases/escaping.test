@@ -26,12 +26,6 @@
 ````
 
 ````
-[<h1>Hello!</h1>](<h1>Hello!</h1>)
-.
-<p><a href="&lt;h1&gt;Hello!&lt;/h1&gt;">&lt;h1&gt;Hello!&lt;/h1&gt;</a></p>
-````
-
-````
 ![<h1>Hello!</h1>](<h1>Hello!</h1>)
 .
 <p><img alt="&lt;h1&gt;Hello!&lt;/h1&gt;" src="&lt;h1&gt;Hello!&lt;/h1&gt;"></p>

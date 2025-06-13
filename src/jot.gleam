@@ -37,7 +37,7 @@ fn add_attribute(
 
 pub type Container {
   ThematicBreak
-  Paragraph(attributes: Dict(String, String), content: List(Inline))
+  Paragraph(attributes: Dict(String, String), content: List(Statement))
   Heading(attributes: Dict(String, String), level: Int, content: List(Inline))
   Codeblock(
     attributes: Dict(String, String),
@@ -46,6 +46,10 @@ pub type Container {
   )
   RawBlock(content: String)
   BulletList(layout: ListLayout, style: String, items: List(List(Container)))
+}
+
+pub type Statement {
+  Statement(inlines: List(Inline))
 }
 
 pub type Inline {
@@ -115,7 +119,7 @@ pub fn parse(djot: String) -> Document {
       verbatim_line_end: splitter.new([" ", "\n"]),
       codeblock_language: splitter.new(["`", "\n"]),
       inline: splitter.new([
-        "\\", "_", "*", "[^", "[", "![", "$$`", "$`", "`", "\n",
+        "\\", "_", "*", "[^", "[", "![", "$$`", "$`", "`", "\n", ".", "!", "?",
       ]),
       link_destination: splitter.new([")", "]", "\n"]),
       math_end: splitter.new(["`"]),
@@ -132,7 +136,6 @@ pub fn parse(djot: String) -> Document {
 
 fn drop_lines(in: String) -> String {
   case in {
-    "" -> ""
     "\n" <> rest -> drop_lines(rest)
     other -> other
   }
@@ -140,7 +143,6 @@ fn drop_lines(in: String) -> String {
 
 fn drop_spaces(in: String) -> String {
   case in {
-    "" -> ""
     " " <> rest -> drop_spaces(rest)
     other -> other
   }
@@ -148,7 +150,6 @@ fn drop_spaces(in: String) -> String {
 
 fn count_drop_spaces(in: String, count: Int) -> #(String, Int) {
   case in {
-    "" -> #("", count)
     " " <> rest -> count_drop_spaces(rest, count + 1)
     other -> #(other, count)
   }
@@ -1103,9 +1104,36 @@ fn parse_paragraph(
   splitters: Splitters,
 ) -> #(Container, String) {
   let #(inline_in, in) = take_paragraph_chars(in)
+
+  let #(statements, inline_in_remaining) =
+    do_parse_paragraph_statements(inline_in, attrs, splitters, [])
+  #(
+    Paragraph(
+      attrs,
+      statements
+        |> list.reverse,
+    ),
+    inline_in_remaining <> in,
+  )
+}
+
+fn do_parse_paragraph_statements(
+  inline_in: String,
+  attrs: Dict(String, String),
+  splitters,
+  statements: List(Statement),
+) {
   let #(inline, inline_in_remaining) =
     parse_inline(inline_in, splitters, "", [])
-  #(Paragraph(attrs, inline), inline_in_remaining <> in)
+  case inline, inline_in_remaining {
+    _, "" | _, "\n" -> #([Statement(inline), ..statements], inline_in_remaining)
+    [], _ -> #(statements, inline_in_remaining)
+    _, _ ->
+      do_parse_paragraph_statements(inline_in_remaining, attrs, splitters, [
+        Statement(inline),
+        ..statements
+      ])
+  }
 }
 
 fn parse_bullet_list(
@@ -1168,7 +1196,7 @@ fn take_list_item_chars(
 fn take_paragraph_chars(in: String) -> #(String, String) {
   case string.split_once(in, "\n\n") {
     Ok(#(content, in)) -> #(content, in)
-    Error(_) ->
+    Error(Nil) ->
       case string.ends_with(in, "\n") {
         True -> #(string.drop_end(in, 1), "")
         False -> #(in, "")
@@ -1236,10 +1264,10 @@ fn containers_to_html_with_last_paragraph(
     [] -> html
     [container] -> {
       case container {
-        Paragraph(attrs, inlines) ->
+        Paragraph(attrs, statements) ->
           html
           |> open_tag("p", attrs)
-          |> inlines_to_html(inlines, refs, TrimLast)
+          |> inlines_to_html(statements_to_inlines(statements), refs, TrimLast)
           |> apply()
           |> close_tag("p")
         _ ->
@@ -1278,10 +1306,10 @@ fn container_to_html(
   let new_html = case container {
     ThematicBreak -> html |> open_tag("hr", dict.new())
 
-    Paragraph(attrs, inlines) -> {
+    Paragraph(attrs, statements) -> {
       html
       |> open_tag("p", attrs)
-      |> inlines_to_html(inlines, refs, TrimLast)
+      |> inlines_to_html(statements_to_inlines(statements), refs, TrimLast)
       |> close_tag("p")
     }
 
@@ -1449,11 +1477,11 @@ fn list_items_to_html(
   case items {
     [] -> html
 
-    [[Paragraph(_, inlines)], ..rest] if layout == Tight -> {
+    [[Paragraph(_, statements)], ..rest] if layout == Tight -> {
       html
       |> open_tag("li", dict.new())
       |> append_to_html("\n")
-      |> inlines_to_html(inlines, refs, TrimLast)
+      |> inlines_to_html(statements_to_inlines(statements), refs, TrimLast)
       |> append_to_html("\n")
       |> close_tag("li")
       |> append_to_html("\n")
@@ -1471,6 +1499,10 @@ fn list_items_to_html(
       |> list_items_to_html(layout, rest, refs)
     }
   }
+}
+
+fn statements_to_inlines(statements: List(Statement)) -> List(Inline) {
+  list.map(statements, fn(s: Statement) { s.inlines }) |> list.flatten
 }
 
 fn inlines_to_html(
