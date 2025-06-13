@@ -5,7 +5,7 @@ description = "A parser for Djot, a markdown-like language"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "lpil", repo = "jot" }
 links = [
-  { title = "Djot Syntax", href = "https://djot.net/syntax" },
+  { title = "Djot Syntax", href = "https://htmlpreview.github.io/?https://github.com/jgm/djot/blob/master/doc/syntax.html" },
   { title = "Sponsor", href = "https://github.com/sponsors/lpil" },
 ]
 
