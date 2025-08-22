@@ -1,5 +1,9 @@
 # Changelog
 
+## v5.0.1 - 2025-08-22
+
+- Fixed warning on latest gleam_stdlib.
+
 ## v5.0.0 - 2025-05-09
 
 - Support for maths.

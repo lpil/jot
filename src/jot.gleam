@@ -1330,7 +1330,7 @@ fn create_footnotes(
     footnote_number: String,
   ) {
     dict.get(document.footnotes, footnote)
-    |> result.then(fn(footnote) {
+    |> result.try(fn(footnote) {
       // Even if the footnote is empty, we need to still make sure a backlink is generated
       case list.is_empty(footnote) {
         True -> Error(Nil)
