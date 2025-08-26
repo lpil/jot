@@ -10,10 +10,11 @@ import jot
 import jot_test/support
 
 pub fn main() {
+  integration_tests()
   gleeunit.main()
 }
 
-pub fn integration_test() {
+fn integration_tests() {
   let tests = support.load_example_test_cases()
   case tests |> list.map(run_testcase) |> result.partition {
     #(_, []) -> Nil
