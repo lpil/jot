@@ -286,7 +286,7 @@ fn parse_container(
   case in {
     "" -> #(in, refs, None, dict.new())
 
-    "{" <> in2 ->
+    "{" <> in2 -> {
       case parse_attributes(in2, attrs) {
         None -> {
           let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
@@ -294,6 +294,7 @@ fn parse_container(
         }
         Some(#(attrs, in)) -> #(in, refs, None, attrs)
       }
+    }
 
     "#" <> in -> {
       let #(heading, refs, in) = parse_heading(in, refs, splitters, attrs)
@@ -308,6 +309,11 @@ fn parse_container(
         }
         Some(#(codeblock, in)) -> #(in, refs, Some(codeblock), dict.new())
       }
+    }
+
+    "> " <> _ | ">\n" <> _ -> {
+      let #(block_quote, in) = parse_block_quote(in, refs, attrs, splitters)
+      #(in, refs, Some(block_quote), dict.new())
     }
 
     "-" as style <> in2 | "*" as style <> in2 -> {
@@ -646,6 +652,60 @@ fn parse_attributes_end(
     "\n" <> in -> Some(#(attrs, in))
     " " <> in -> parse_attributes_end(in, attrs)
     _ -> None
+  }
+}
+
+fn parse_block_quote(
+  in: String,
+  refs: Refs,
+  attrs: Dict(String, String),
+  splitters: Splitters,
+) -> #(Container, String) {
+  let #(reversed_lines, in) = take_block_quote_chars(in, [])
+  let items = case list.reverse(reversed_lines) {
+    [] -> []
+    lines -> {
+      let content = string.join(lines, "\n")
+      parse_block_quote_items(content, refs, dict.new(), splitters, [])
+    }
+  }
+
+  #(BlockQuote(attrs, items), in)
+}
+
+fn take_block_quote_chars(
+  in: String,
+  lines: List(String),
+) -> #(List(String), String) {
+  case in {
+    ">" -> #(["", ..lines], "")
+    ">\n" <> rest -> take_block_quote_chars(rest, ["", ..lines])
+    "> " <> rest -> {
+      case string.split_once(rest, "\n") {
+        Ok(#(line, rest)) -> take_block_quote_chars(rest, [line, ..lines])
+        Error(_) -> #([rest, ..lines], "")
+      }
+    }
+    _ -> #(lines, in)
+  }
+}
+
+fn parse_block_quote_items(
+  in: String,
+  refs: Refs,
+  attrs: Dict(String, String),
+  splitters: Splitters,
+  children: List(Container),
+) -> List(Container) {
+  let #(in, refs, container, attrs) =
+    parse_container(in, refs, splitters, attrs, 0)
+  let children = case container {
+    None -> children
+    Some(container) -> [container, ..children]
+  }
+  case in {
+    "" -> list.reverse(children)
+    _ -> parse_block_quote_items(in, refs, attrs, splitters, children)
   }
 }
 
