@@ -9,6 +9,16 @@ block <em>quote</em>.</p>
 ```
 
 ```
+> Lazy
+block _quote_.
+.
+<blockquote>
+<p>Lazy
+block <em>quote</em>.</p>
+</blockquote>
+```
+
+```
 > block
 >
 > quote
@@ -39,6 +49,34 @@ block <em>quote</em>.</p>
 <blockquote>
 <blockquote>
 <p>nested</p>
+</blockquote>
+</blockquote>
+</blockquote>
+```
+
+```
+> > > nested
+lazy
+.
+<blockquote>
+<blockquote>
+<blockquote>
+<p>nested
+lazy</p>
+</blockquote>
+</blockquote>
+</blockquote>
+```
+
+```
+> > > nested
+> lazy
+.
+<blockquote>
+<blockquote>
+<blockquote>
+<p>nested
+lazy</p>
 </blockquote>
 </blockquote>
 </blockquote>
@@ -84,6 +122,15 @@ block <em>quote</em>.</p>
 </blockquote>
 ```
 
+```
+> hi
+>there
+.
+<blockquote>
+<p>hi
+&gt;there</p>
+</blockquote>
+```
 
 ```
 aaa
