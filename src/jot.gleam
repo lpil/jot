@@ -144,7 +144,6 @@ pub fn parse(djot: String) -> Document {
 
 fn drop_lines(in: String) -> String {
   case in {
-    "" -> ""
     "\n" <> rest -> drop_lines(rest)
     other -> other
   }
@@ -152,7 +151,6 @@ fn drop_lines(in: String) -> String {
 
 fn drop_spaces(in: String) -> String {
   case in {
-    "" -> ""
     " " <> rest -> drop_spaces(rest)
     other -> other
   }
@@ -160,7 +158,6 @@ fn drop_spaces(in: String) -> String {
 
 fn count_drop_spaces(in: String, count: Int) -> #(String, Int) {
   case in {
-    "" -> #("", count)
     " " <> rest -> count_drop_spaces(rest, count + 1)
     other -> #(other, count)
   }
