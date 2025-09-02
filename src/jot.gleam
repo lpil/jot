@@ -46,6 +46,7 @@ pub type Container {
   )
   RawBlock(content: String)
   BulletList(layout: ListLayout, style: String, items: List(List(Container)))
+  BlockQuote(attributes: Dict(String, String), items: List(Container))
 }
 
 pub type Inline {
@@ -1362,6 +1363,13 @@ fn container_to_html(
       |> list_items_to_html(layout, items, refs)
       |> close_tag("ul")
     }
+
+    BlockQuote(attrs, items) ->
+      html
+      |> open_tag("blockquote", attrs)
+      |> append_to_html("\n")
+      |> containers_to_html(items, refs, _)
+      |> close_tag("blockquote")
   }
   append_to_html(new_html, "\n")
 }
