@@ -678,15 +678,22 @@ fn take_block_quote_chars(
   lines: List(String),
 ) -> #(List(String), String) {
   case in {
+    // An empty line marks the end of the block quote.
+    "\n" <> in -> #(lines, in)
     ">" -> #(["", ..lines], "")
-    ">\n" <> rest -> take_block_quote_chars(rest, ["", ..lines])
-    "> " <> rest -> {
-      case string.split_once(rest, "\n") {
-        Ok(#(line, rest)) -> take_block_quote_chars(rest, [line, ..lines])
-        Error(_) -> #([rest, ..lines], "")
+    ">\n" <> in ->
+      case lines {
+        // Empty lines at the beginning of the block quote are ignored.
+        [] -> take_block_quote_chars(in, [])
+        _ -> take_block_quote_chars(in, ["", ..lines])
+      }
+
+    "> " <> in | in -> {
+      case string.split_once(in, "\n") {
+        Ok(#(line, in)) -> take_block_quote_chars(in, [line, ..lines])
+        Error(_) -> #([in, ..lines], "")
       }
     }
-    _ -> #(lines, in)
   }
 }
 
