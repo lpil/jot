@@ -40,6 +40,7 @@ This project is a work in progress. So far it supports:
 - [x] Block attributes
 - [x] Bullet lists without nesting
 - [x] Code blocks
+- [x] Block quotes
 - [x] Content escaping
 - [x] Emphasis and strong
 - [x] Footnotes
