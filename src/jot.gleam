@@ -115,7 +115,18 @@ pub fn parse(djot: String) -> Document {
       verbatim_line_end: splitter.new([" ", "\n"]),
       codeblock_language: splitter.new(["`", "\n"]),
       inline: splitter.new([
-        "\\", "_", "*", "[^", "[", "![", "$$`", "$`", "`", "\n", "--",
+        "\\",
+        "_",
+        "*",
+        "[^",
+        "[",
+        "![",
+        "$$`",
+        "$`",
+        "`",
+        "\n",
+        "--",
+        "...",
       ]),
       link_destination: splitter.new([")", "]", "\n"]),
       math_end: splitter.new(["`"]),
@@ -738,6 +749,11 @@ fn parse_inline(
         "" -> #(list.reverse(acc), "")
         text -> #(list.reverse([Text(text), ..acc]), "")
       }
+
+    #(before, "...", in) -> {
+      let text = text <> before <> "…"
+      parse_inline(in, splitters, text, acc)
+    }
 
     #(before, "--", in) -> {
       let #(count, in) = count_drop_hyphens(in, 2)
