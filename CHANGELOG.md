@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added smart replacing of hyphens with em/en dashes.
+- Added smart replacing of `...` with the ellipsis symbol.
 
 ## v5.0.1 - 2025-08-22
 

@@ -114,20 +114,3 @@ be overridden using `{` and `}`:
 .
 <p>‘’hi‘’</p>
 ```
-
-Three periods form an ellipsis:
-
-```
-Ellipses...and...and....
-.
-<p>Ellipses…and…and….</p>
-```
-
-Periods can be escaped if ellipsis-formation
-is not wanted:
-
-```
-No ellipses\.\.\.
-.
-<p>No ellipses...</p>
-```

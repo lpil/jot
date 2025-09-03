@@ -10,6 +10,7 @@ A parser for [Djot][djot], a markdown-like language.
 ```sh
 gleam add jot@5
 ```
+
 ```gleam
 import jot
 
@@ -53,3 +54,4 @@ This project is a work in progress. So far it supports:
 - [x] Raw blocks
 - [x] Thematic breaks
 - [x] Smart replacing of hyphens with dashes
+- [x] Smart replacing of `...` with ellipsis
