@@ -1,6 +1,6 @@
 # Changelog
 
-## v6.0.0 - Unreleased
+## v6.0.0 - 2025-09-03
 
 - Added support for smart replacing of hyphens with em/en dashes.
 - Added support for smart replacing of `...` with the ellipsis symbol.
