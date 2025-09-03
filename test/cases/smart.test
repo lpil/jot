@@ -1,0 +1,58 @@
+Two hyphens form an en-dash, three an em-dash.
+
+```
+Some dashes:  em---em
+en--en
+em --- em
+en -- en
+2--3
+.
+<p>Some dashes:  em—em
+en–en
+em — em
+en – en
+2–3</p>
+```
+
+A sequence of more than three hyphens is
+parsed as a sequence of em and/or en dashes,
+with no hyphens. If possible, a homogeneous
+sequence of dashes is used (so, 10 hyphens
+= 5 en dashes, and 9 hyphens = 3 em dashes).
+When a heterogeneous sequence must be used,
+the em dashes come first, followed by the en
+dashes, and as few en dashes as possible are
+used (so, 7 hyphens = 2 em dashes an 1 en
+dash).
+
+```
+one-
+two--
+three---
+four----
+five-----
+six------
+seven-------
+eight--------
+nine---------
+thirteen-------------.
+.
+<p>one-
+two–
+three—
+four––
+five—–
+six——
+seven—––
+eight––––
+nine———
+thirteen———––.</p>
+```
+
+Hyphens can be escaped:
+
+```
+Escaped hyphens: \-- \-\-\-.
+.
+<p>Escaped hyphens: -- ---.</p>
+```

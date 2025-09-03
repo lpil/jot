@@ -115,7 +115,7 @@ pub fn parse(djot: String) -> Document {
       verbatim_line_end: splitter.new([" ", "\n"]),
       codeblock_language: splitter.new(["`", "\n"]),
       inline: splitter.new([
-        "\\", "_", "*", "[^", "[", "![", "$$`", "$`", "`", "\n",
+        "\\", "_", "*", "[^", "[", "![", "$$`", "$`", "`", "\n", "--",
       ]),
       link_destination: splitter.new([")", "]", "\n"]),
       math_end: splitter.new(["`"]),
@@ -151,6 +151,31 @@ fn count_drop_spaces(in: String, count: Int) -> #(String, Int) {
     "" -> #("", count)
     " " <> rest -> count_drop_spaces(rest, count + 1)
     other -> #(other, count)
+  }
+}
+
+fn count_drop_hyphens(in: String, count: Int) -> #(Int, String) {
+  case in {
+    "-" <> rest -> count_drop_hyphens(rest, count + 1)
+    _ -> #(count, in)
+  }
+}
+
+/// Given the length of a sequence of `-` this turns it in a series of em/en
+/// dashes.
+fn dash_sequence(hyphens: Int) -> String {
+  case hyphens % 3, hyphens % 2 {
+    0, _ -> string.repeat("—", hyphens / 3)
+    _, 0 -> string.repeat("–", hyphens / 2)
+    _, _ -> {
+      // Thank you Yoshie for figuring this out!!
+      let ems = int.max(0, { hyphens - 2 } / 3)
+      let hyphens = hyphens - ems * 3
+
+      string.repeat("—", ems)
+      <> string.repeat("–", hyphens / 2)
+      <> string.repeat("-", hyphens % 2)
+    }
   }
 }
 
@@ -714,9 +739,15 @@ fn parse_inline(
         text -> #(list.reverse([Text(text), ..acc]), "")
       }
 
+    #(before, "--", in) -> {
+      let #(count, in) = count_drop_hyphens(in, 2)
+      let text = text <> before <> dash_sequence(count)
+      parse_inline(in, splitters, text, acc)
+    }
+
     // // Escapes
-    #(a, "\\", in) -> {
-      let text = text <> a
+    #(before, "\\", in) -> {
+      let text = text <> before
       case in {
         "!" as e <> in
         | "\"" as e <> in

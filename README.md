@@ -52,3 +52,4 @@ This project is a work in progress. So far it supports:
 - [x] Paragraphs
 - [x] Raw blocks
 - [x] Thematic breaks
+- [x] Smart replacing of hyphens with dashes
