@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added smart replacing of hyphens with em/en dashes.
+
 ## v5.0.1 - 2025-08-22
 
 - Fixed warning on latest gleam_stdlib.
