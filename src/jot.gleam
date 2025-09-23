@@ -828,17 +828,39 @@ fn take_block_quote_chars(
         _ -> take_block_quote_chars(in, ["", ..lines], div_close_size)
       }
 
-    "> " <> in | in -> {
+    "> " <> in -> {
       case string.split_once(in, "\n") {
         Ok(#(line, in)) ->
           take_block_quote_chars(in, [line, ..lines], div_close_size)
         Error(_) -> #([in, ..lines], "")
       }
     }
-    in -> {
-      // take like paragraph chars
-      todo
-    }
+    in -> take_block_quote_stop_on_div_close(in, lines, div_close_size)
+  }
+}
+
+fn take_block_quote_stop_on_div_close(
+  in: String,
+  lines: List(String),
+  div_close_size: Option(Int),
+) {
+  let #(line, rest) = slurp_to_line_end(in)
+
+  case div_close_size {
+    None ->
+      case rest {
+        "" -> #([line, ..lines], "")
+        _ -> take_block_quote_chars(in, [line, ..lines], div_close_size)
+      }
+    Some(size) ->
+      case check_line_suitable_div_end(line, size) {
+        True -> #(lines, rest)
+        False ->
+          case rest {
+            "" -> #([line, ..lines], "")
+            _ -> take_block_quote_chars(in, [line, ..lines], div_close_size)
+          }
+      }
   }
 }
 
