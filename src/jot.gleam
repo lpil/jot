@@ -47,6 +47,7 @@ pub type Container {
   RawBlock(content: String)
   BulletList(layout: ListLayout, style: String, items: List(List(Container)))
   BlockQuote(attributes: Dict(String, String), items: List(Container))
+  Div(attributes: Dict(String, String), items: List(Container))
 }
 
 pub type Inline {
@@ -199,7 +200,7 @@ fn parse_document_content(
   let #(in, spaces_count) = count_drop_spaces(in, 0)
 
   let #(in, refs, container, attrs) =
-    parse_container(in, refs, splitters, attrs, spaces_count)
+    parse_container(in, refs, splitters, attrs, spaces_count, None)
   let ast = case container {
     None -> ast
     Some(container) -> [container, ..ast]
@@ -238,7 +239,7 @@ fn parse_block(
     True -> #(list.reverse(ast), refs, in)
     False -> {
       let #(in, refs, container, attrs) =
-        parse_container(in, refs, splitters, attrs, indentation)
+        parse_container(in, refs, splitters, attrs, indentation, None)
       let ast = case container {
         None -> ast
         Some(container) -> [container, ..ast]
@@ -265,7 +266,7 @@ fn parse_block_after_indent_checked(
   indentation indentation: Int,
 ) -> #(List(Container), Refs, String) {
   let #(in, refs, container, attrs) =
-    parse_container(in, refs, splitters, attrs, indentation)
+    parse_container(in, refs, splitters, attrs, indentation, None)
   let ast = case container {
     None -> ast
     Some(container) -> [container, ..ast]
@@ -282,6 +283,7 @@ fn parse_container(
   splitters: Splitters,
   attrs: Dict(String, String),
   indentation: Int,
+  div_close_size: Option(Int),
 ) -> #(String, Refs, Option(Container), Dict(String, String)) {
   case in {
     "" -> #(in, refs, None, dict.new())
@@ -289,7 +291,8 @@ fn parse_container(
     "{" <> in2 -> {
       case parse_attributes(in2, attrs) {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
           #(in, refs, Some(paragraph), dict.new())
         }
         Some(#(attrs, in)) -> #(in, refs, None, attrs)
@@ -297,14 +300,16 @@ fn parse_container(
     }
 
     "#" <> in -> {
-      let #(heading, refs, in) = parse_heading(in, refs, splitters, attrs)
+      let #(heading, refs, in) =
+        parse_heading(in, refs, splitters, attrs, div_close_size)
       #(in, refs, Some(heading), dict.new())
     }
 
     "~" as delim <> in2 | "`" as delim <> in2 -> {
       case parse_codeblock(in2, attrs, delim, indentation, splitters) {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
           #(in, refs, Some(paragraph), dict.new())
         }
         Some(#(codeblock, in)) -> #(in, refs, Some(codeblock), dict.new())
@@ -312,7 +317,8 @@ fn parse_container(
     }
 
     "> " <> _ | ">\n" <> _ -> {
-      let #(block_quote, in) = parse_block_quote(in, refs, attrs, splitters)
+      let #(block_quote, in) =
+        parse_block_quote(in, refs, attrs, splitters, div_close_size)
       #(in, refs, Some(block_quote), dict.new())
     }
 
@@ -324,7 +330,8 @@ fn parse_container(
           #(in, refs, Some(list), dict.new())
         }
         None, _ -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
           #(in, refs, Some(paragraph), dict.new())
         }
         Some(#(thematic_break, in)), _ -> {
@@ -336,7 +343,8 @@ fn parse_container(
     "[^" <> in2 -> {
       case parse_footnote_def(in2, refs, splitters, "^") {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
           #(in, refs, Some(paragraph), dict.new())
         }
         Some(#(id, footnote, refs, in)) -> {
@@ -350,7 +358,8 @@ fn parse_container(
     "[" <> in2 -> {
       case parse_ref_def(in2, "") {
         None -> {
-          let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
           #(in, refs, Some(paragraph), dict.new())
         }
         Some(#(id, url, in)) -> {
@@ -360,10 +369,133 @@ fn parse_container(
       }
     }
 
+    ":::" <> in2 -> {
+      case parse_div(in2, refs, attrs, splitters) {
+        None -> {
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
+          #(in, refs, Some(paragraph), dict.new())
+        }
+        Some(#(in, attrs, content)) -> #(
+          in,
+          refs,
+          Some(Div(attrs, content)),
+          dict.new(),
+        )
+      }
+    }
+
     _ -> {
-      let #(paragraph, in) = parse_paragraph(in, attrs, splitters)
+      let #(paragraph, in) =
+        parse_paragraph(in, attrs, splitters, div_close_size)
       #(in, refs, Some(paragraph), dict.new())
     }
+  }
+}
+
+/// Parse a div.
+fn parse_div(
+  in: String,
+  refs: Refs,
+  attrs: Dict(String, String),
+  splitters: Splitters,
+) -> _ {
+  let #(size, in2) = count_div_fence_size(in, 3)
+  let class = parse_div_class(in2, splitters)
+
+  use #(class, rest) <- option.then(class)
+  let attrs = case class {
+    "" -> attrs
+    class -> add_attribute(attrs, "class", class)
+  }
+  let #(rest, content) =
+    parse_div_content(rest, refs, dict.new(), size, splitters, [])
+  Some(#(rest, attrs, content))
+}
+
+fn parse_div_content(
+  in: String,
+  refs: Refs,
+  attrs: Dict(String, String),
+  fence_size: Int,
+  splitters: Splitters,
+  children: List(Container),
+) -> #(String, List(Container)) {
+  case check_first_line_suitable_div_end(in, fence_size) {
+    Some(in2) -> {
+      #(in2, list.reverse(children))
+    }
+    None -> {
+      let #(in, refs, container, attrs) =
+        parse_container(in, refs, splitters, attrs, 0, Some(fence_size))
+
+      let children = case container {
+        None -> children
+        Some(container) -> [container, ..children]
+      }
+
+      case in {
+        "" -> #(in, list.reverse(children))
+        _ -> parse_div_content(in, refs, attrs, fence_size, splitters, children)
+      }
+    }
+  }
+}
+
+/// Checks if current line is a suitable terminator for
+/// a div fence of a particular size.
+///
+/// Returns the rest of the input if it is.
+fn check_first_line_suitable_div_end(
+  in: String,
+  fence_size: Int,
+) -> Option(String) {
+  let #(line, rest) = slurp_to_line_end(in)
+
+  case check_line_suitable_div_end(line, fence_size) {
+    False -> None
+    True -> Some(rest)
+  }
+}
+
+fn check_line_suitable_div_end(line: String, fence_size: Int) -> Bool {
+  line
+  |> string.trim
+  |> count_fence(0)
+  |> option.map(fn(candidate_fence_size) { candidate_fence_size >= fence_size })
+  |> option.unwrap(False)
+}
+
+fn count_fence(line: String, count: Int) -> Option(Int) {
+  case line {
+    "" -> Some(count)
+    ":" <> rest -> count_fence(rest, count + 1)
+    _ -> None
+  }
+}
+
+/// counts the size of a div fence.
+fn count_div_fence_size(in: String, count: Int) -> #(Int, String) {
+  case in {
+    ":" <> rest -> count_div_fence_size(rest, count + 1)
+    _ -> #(count, in)
+  }
+}
+
+/// Parse the class name for a div, returns Some if classname is present.
+/// First entry of Some tuple is classname second entry
+///
+/// WARNING:
+/// spaces after class are not handled,
+/// so `::: classname \n` will not a div parse.
+fn parse_div_class(
+  in: String,
+  splitters: Splitters,
+) -> Option(#(String, String)) {
+  case splitter.split(splitters.verbatim_line_end, in) {
+    #("", " ", rest) -> parse_div_class(rest, splitters)
+    #(class, "\n", rest) -> Some(#(class, rest))
+    _ -> None
   }
 }
 
@@ -437,6 +569,12 @@ fn parse_codeblock_content(
   }
 }
 
+/// get all content up until the end of the line erasing up to `indentation`
+/// spaces.
+///
+/// Note:
+/// If indentation is not fully satisfied by preceding spaces duplicated spaces
+/// will be removed.
 fn slurp_verbatim_line(
   in: String,
   indentation: Int,
@@ -660,8 +798,9 @@ fn parse_block_quote(
   refs: Refs,
   attrs: Dict(String, String),
   splitters: Splitters,
+  div_close_size: Option(Int),
 ) -> #(Container, String) {
-  let #(reversed_lines, in) = take_block_quote_chars(in, [])
+  let #(reversed_lines, in) = take_block_quote_chars(in, [], div_close_size)
   let items = case list.reverse(reversed_lines) {
     [] -> []
     lines -> {
@@ -676,6 +815,7 @@ fn parse_block_quote(
 fn take_block_quote_chars(
   in: String,
   lines: List(String),
+  div_close_size: Option(Int),
 ) -> #(List(String), String) {
   case in {
     // An empty line marks the end of the block quote.
@@ -684,15 +824,20 @@ fn take_block_quote_chars(
     ">\n" <> in ->
       case lines {
         // Empty lines at the beginning of the block quote are ignored.
-        [] -> take_block_quote_chars(in, [])
-        _ -> take_block_quote_chars(in, ["", ..lines])
+        [] -> take_block_quote_chars(in, [], div_close_size)
+        _ -> take_block_quote_chars(in, ["", ..lines], div_close_size)
       }
 
     "> " <> in | in -> {
       case string.split_once(in, "\n") {
-        Ok(#(line, in)) -> take_block_quote_chars(in, [line, ..lines])
+        Ok(#(line, in)) ->
+          take_block_quote_chars(in, [line, ..lines], div_close_size)
         Error(_) -> #([in, ..lines], "")
       }
+    }
+    in -> {
+      // take like paragraph chars
+      todo
     }
   }
 }
@@ -705,7 +850,7 @@ fn parse_block_quote_items(
   children: List(Container),
 ) -> List(Container) {
   let #(in, refs, container, attrs) =
-    parse_container(in, refs, splitters, attrs, 0)
+    parse_container(in, refs, splitters, attrs, 0, None)
   let children = case container {
     None -> children
     Some(container) -> [container, ..children]
@@ -721,6 +866,7 @@ fn parse_heading(
   refs: Refs,
   splitters: Splitters,
   attrs: Dict(String, String),
+  div_close_size: Option(Int),
 ) -> #(Container, Refs, String) {
   case heading_level(in, 1) {
     Some(#(level, in)) -> {
@@ -748,7 +894,8 @@ fn parse_heading(
     }
 
     None -> {
-      let #(p, in) = parse_paragraph("#" <> in, attrs, splitters)
+      let #(p, in) =
+        parse_paragraph("#" <> in, attrs, splitters, div_close_size)
       #(p, refs, in)
     }
   }
@@ -1213,8 +1360,9 @@ fn parse_paragraph(
   in: String,
   attrs: Dict(String, String),
   splitters: Splitters,
+  div_close_size: Option(Int),
 ) -> #(Container, String) {
-  let #(inline_in, in) = take_paragraph_chars(in)
+  let #(inline_in, in) = take_paragraph_chars(in, div_close_size)
   let #(inline, inline_in_remaining) =
     parse_inline(inline_in, splitters, "", [])
   #(Paragraph(attrs, inline), inline_in_remaining <> in)
@@ -1246,7 +1394,7 @@ fn parse_list_item(
   children: List(Container),
 ) -> List(Container) {
   let #(in, refs, container, attrs) =
-    parse_container(in, refs, splitters, attrs, 0)
+    parse_container(in, refs, splitters, attrs, 0, None)
   let children = case container {
     None -> children
     Some(container) -> [container, ..children]
@@ -1277,14 +1425,66 @@ fn take_list_item_chars(
   }
 }
 
-fn take_paragraph_chars(in: String) -> #(String, String) {
-  case string.split_once(in, "\n\n") {
+fn take_paragraph_chars(
+  in: String,
+  div_close_size: Option(Int),
+) -> #(String, String) {
+  let #(paragraph, rest) = case string.split_once(in, "\n\n") {
     Ok(#(content, in)) -> #(content, in)
     Error(_) ->
       case string.ends_with(in, "\n") {
         True -> #(string.drop_end(in, 1), "")
         False -> #(in, "")
       }
+  }
+
+  case div_close_size {
+    Some(size) -> {
+      let #(split_paragraph, paragraph_rest) =
+        search_paragraph_for_div_end(paragraph, [], size)
+
+      case split_paragraph, paragraph_rest {
+        "", "" -> #(paragraph, rest)
+        _, "" -> #(split_paragraph, rest)
+        _, _ -> #(split_paragraph, paragraph_rest <> "\n\n" <> rest)
+      }
+    }
+    None -> #(paragraph, rest)
+  }
+}
+
+/// search a stretch of paragraph characters for valid paragraph terminator
+///
+/// regex expression: `\n[ \t]*:::+[ \t]*(\n|$)`
+fn search_paragraph_for_div_end(
+  in: String,
+  acc: List(String),
+  size: Int,
+) -> #(String, String) {
+  let #(line, rest) = slurp_to_line_end(in)
+  case check_line_suitable_div_end(line, size) {
+    True -> {
+      #(acc |> list.reverse |> string.join("\n"), rest)
+    }
+    False -> {
+      case rest {
+        "" -> #([line, ..acc] |> list.reverse |> string.join("\n"), "")
+        rest -> search_paragraph_for_div_end(rest, [line, ..acc], size)
+      }
+    }
+  }
+}
+
+/// Split at \n. if a newline is not present ans there are remaining characters,
+/// then the remaining characters will be returned in the line position with an empty rest
+fn slurp_to_line_end(in: String) -> #(String, String) {
+  let split =
+    string.split_once(in, "\n")
+    |> option.from_result
+
+  case split {
+    Some(split) -> split
+    None -> #(in, "")
   }
 }
 
@@ -1434,6 +1634,13 @@ fn container_to_html(
       |> append_to_html("\n")
       |> containers_to_html(items, refs, _)
       |> close_tag("blockquote")
+
+    Div(attributes:, items:) ->
+      html
+      |> open_tag("div", attributes)
+      |> append_to_html("\n")
+      |> containers_to_html(items, refs, _)
+      |> close_tag("div")
   }
   append_to_html(new_html, "\n")
 }
