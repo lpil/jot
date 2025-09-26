@@ -401,7 +401,7 @@ fn parse_div(
   splitters: Splitters,
 ) -> _ {
   let #(size, in2) = count_div_fence_size(in, 3)
-  let class = parse_div_class(in2, splitters)
+  let class = parse_div_class(in2)
 
   use #(class, rest) <- option.then(class)
   let attrs = case class {
@@ -459,22 +459,35 @@ fn check_first_line_suitable_div_end(
 }
 
 fn check_line_suitable_div_end(line: String, fence_size: Int) -> Bool {
-  line
-  |> string.trim
-  |> count_fence(0)
-  |> option.map(fn(candidate_fence_size) { candidate_fence_size >= fence_size })
-  |> option.unwrap(False)
+  let candidate_fence_size =
+    line
+    |> string.trim
+    |> count_div_terminator_fence_size(0)
+
+  case candidate_fence_size {
+    Some(candidate_fence_size) -> candidate_fence_size >= fence_size
+    None -> False
+  }
 }
 
-fn count_fence(line: String, count: Int) -> Option(Int) {
+/// Counts the size of a div fence. Used to count pretrimmed lines which may
+/// contain a valid terminating fence. Valid pretrimmed fences contain only
+/// colons `:`.
+///
+/// Returns Some(`size`) for a valid fence and None for an invalid fence.
+fn count_div_terminator_fence_size(line: String, count: Int) -> Option(Int) {
   case line {
     "" -> Some(count)
-    ":" <> rest -> count_fence(rest, count + 1)
+    ":" <> rest -> count_div_terminator_fence_size(rest, count + 1)
     _ -> None
   }
 }
 
-/// counts the size of a div fence.
+/// Counts the size of a div fence. Used in initial parsing of a div once a
+/// minimum fence structure has been seen: `:::`.
+///
+/// Returns the size of the fence seen with the remainder of the unused input
+/// stream.
 fn count_div_fence_size(in: String, count: Int) -> #(Int, String) {
   case in {
     ":" <> rest -> count_div_fence_size(rest, count + 1)
@@ -482,20 +495,18 @@ fn count_div_fence_size(in: String, count: Int) -> #(Int, String) {
   }
 }
 
-/// Parse the class name for a div, returns Some if classname is present.
-/// First entry of Some tuple is classname second entry
-///
-/// WARNING:
-/// spaces after class are not handled,
-/// so `::: classname \n` will not a div parse.
-fn parse_div_class(
-  in: String,
-  splitters: Splitters,
-) -> Option(#(String, String)) {
-  case splitter.split(splitters.verbatim_line_end, in) {
-    #("", " ", rest) -> parse_div_class(rest, splitters)
-    #(class, "\n", rest) -> Some(#(class, rest))
-    _ -> None
+/// Parse the class name for a div. Returns Some if a classname is present.
+/// Returns Some if no classname is present. Returns None if the text is an
+/// invalid classname.
+fn parse_div_class(in: String) -> Option(#(String, String)) {
+  let #(line, rest) = slurp_to_line_end(in)
+  let line = string.trim(line)
+
+  let has_prohibited = list.any([" ", "\t"], string.contains(line, _))
+
+  case has_prohibited {
+    False -> Some(#(line, rest))
+    True -> None
   }
 }
 
@@ -569,12 +580,6 @@ fn parse_codeblock_content(
   }
 }
 
-/// get all content up until the end of the line erasing up to `indentation`
-/// spaces.
-///
-/// Note:
-/// If indentation is not fully satisfied by preceding spaces duplicated spaces
-/// will be removed.
 fn slurp_verbatim_line(
   in: String,
   indentation: Int,
@@ -1475,9 +1480,9 @@ fn take_paragraph_chars(
   }
 }
 
-/// search a stretch of paragraph characters for valid paragraph terminator
-///
-/// regex expression: `\n[ \t]*:::+[ \t]*(\n|$)`
+/// Search a stretch of paragraph characters for valid div terminator. A valid
+/// div terminator is a line containing leading and trailing whitespace with an
+/// uninterrupted fence of colons `:`. The fence must be at least `size` long.
 fn search_paragraph_for_div_end(
   in: String,
   acc: List(String),
@@ -1497,16 +1502,12 @@ fn search_paragraph_for_div_end(
   }
 }
 
-/// Split at \n. if a newline is not present ans there are remaining characters,
-/// then the remaining characters will be returned in the line position with an empty rest
+/// Split at \n. If a newline is not present, then the remaining characters
+/// will be returned as if there where a newline as the final character.
 fn slurp_to_line_end(in: String) -> #(String, String) {
-  let split =
-    string.split_once(in, "\n")
-    |> option.from_result
-
-  case split {
-    Some(split) -> split
-    None -> #(in, "")
+  case string.split_once(in, "\n") {
+    Ok(split) -> split
+    Error(Nil) -> #(in, "")
   }
 }
 
