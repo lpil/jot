@@ -1,5 +1,9 @@
 # Changelog
 
+## v7.0.0 - 2025-09-27
+
+- Added support for Divs.
+
 ## v6.0.0 - 2025-09-03
 
 - Added support for smart replacing of hyphens with em/en dashes.
