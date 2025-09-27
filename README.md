@@ -42,6 +42,7 @@ This project is a work in progress. So far it supports:
 - [x] Code blocks
 - [x] Block quotes
 - [x] Content escaping
+- [x] Div
 - [x] Emphasis and strong
 - [x] Footnotes
 - [x] Headings
