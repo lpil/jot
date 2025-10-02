@@ -1,8 +1,8 @@
 # Changelog
 
-## v7.0.0 - 2025-09-27
+## v7.0.0 - 2025-10-02
 
-- Added support for Divs.
+- Added support for divs.
 
 ## v6.0.0 - 2025-09-03
 
