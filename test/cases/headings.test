@@ -97,3 +97,34 @@ lazy</h1>
 .
 <h3 id="Heading-with-comma">Heading with, comma</h3>
 ```
+
+```
+## duplicate
+
+## duplicate
+.
+<h2 id="duplicate">duplicate</h2>
+<h2 id="duplicate-1">duplicate</h2>
+```
+
+
+```
+[duplicate]: https://example.com
+
+## duplicate
+
+[duplicate][duplicate]
+.
+<h2 id="duplicate">duplicate</h2>
+<p><a href="https://example.com">duplicate</a></p>
+```
+
+
+```
+## duplicate
+
+[duplicate][duplicate]
+.
+<h2 id="duplicate">duplicate</h2>
+<p><a href="#duplicate">duplicate</a></p>
+```

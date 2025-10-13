@@ -1,5 +1,10 @@
 # Changelog
 
+## v7.1.0 - 2025-10-13
+
+- Added support for auto ids for headings that have the same content as
+  previous headings.
+
 ## v7.0.0 - 2025-10-02
 
 - Added support for divs.

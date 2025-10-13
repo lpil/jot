@@ -75,7 +75,11 @@ pub type Destination {
 }
 
 type Refs {
-  Refs(urls: Dict(String, String), footnotes: Dict(String, List(Container)))
+  Refs(
+    urls: Dict(String, String),
+    headings: Dict(String, Int),
+    footnotes: Dict(String, List(Container)),
+  )
 }
 
 /// Convert a string of Djot into a string of HTML.
@@ -133,14 +137,39 @@ pub fn parse(djot: String) -> Document {
       link_destination: splitter.new([")", "]", "\n"]),
       math_end: splitter.new(["`"]),
     )
-  let refs = Refs(dict.new(), dict.new())
+  let refs = Refs(dict.new(), dict.new(), dict.new())
 
-  let #(ast, Refs(urls, footnotes), _) =
+  let #(ast, Refs(urls:, footnotes:, headings:), _) =
     djot
     |> string.replace("\r\n", "\n")
     |> parse_document_content(refs, splitters, [], dict.new())
 
+  let urls =
+    dict.fold(headings, urls, fn(urls, id, count) {
+      int_fold_down_zero_inclusive(count, urls, fn(urls, i) {
+        let key = case i {
+          0 -> id
+          _ -> id <> "-" <> int.to_string(i)
+        }
+        case dict.has_key(urls, key) {
+          True -> urls
+          False -> dict.insert(urls, key, "#" <> key)
+        }
+      })
+    })
+
   Document(ast, urls, footnotes)
+}
+
+fn int_fold_down_zero_inclusive(
+  int: Int,
+  acc: acc,
+  reduce: fn(acc, Int) -> acc,
+) -> acc {
+  case int < 0 {
+    True -> acc
+    False -> int_fold_down_zero_inclusive(int - 1, reduce(acc, int), reduce)
+  }
 }
 
 fn drop_lines(in: String) -> String {
@@ -905,11 +934,22 @@ fn parse_heading(
       let #(refs, attrs) = case id_sanitise(text) {
         "" -> #(refs, attrs)
         id -> {
-          case dict.get(refs.urls, id) {
-            Ok(_) -> #(refs, attrs)
+          case dict.get(refs.headings, id) {
+            // This is not the first heading seen with this content. We must
+            // add a suffix to the id to make it unique.
+            Ok(i) -> {
+              let i = i + 1
+              let refs =
+                Refs(..refs, headings: dict.insert(refs.headings, id, i))
+              let id = id <> "-" <> int.to_string(i)
+              let attrs = add_attribute(attrs, "id", id)
+              #(refs, attrs)
+            }
+
+            // This is the first heading seen with this content
             Error(_) -> {
               let refs =
-                Refs(..refs, urls: dict.insert(refs.urls, id, "#" <> id))
+                Refs(..refs, headings: dict.insert(refs.headings, id, 0))
               let attrs = add_attribute(attrs, "id", id)
               #(refs, attrs)
             }
@@ -1511,6 +1551,13 @@ fn slurp_to_line_end(in: String) -> #(String, String) {
   }
 }
 
+type RenderRefs {
+  RenderRefs(
+    urls: Dict(String, String),
+    footnotes: Dict(String, List(Container)),
+  )
+}
+
 /// Convert a document tree into a string of HTML.
 ///
 /// See `to_html` for further documentation.
@@ -1519,7 +1566,7 @@ pub fn document_to_html(document: Document) -> String {
   let generated_html =
     containers_to_html(
       document.content,
-      Refs(document.references, document.footnotes),
+      RenderRefs(urls: document.references, footnotes: document.footnotes),
       GeneratedHtml("", []),
     )
 
@@ -1563,7 +1610,7 @@ type GeneratedHtml {
 
 fn containers_to_html_with_last_paragraph(
   containers: List(Container),
-  refs: Refs,
+  refs: RenderRefs,
   html: GeneratedHtml,
   apply: fn(GeneratedHtml) -> GeneratedHtml,
 ) -> GeneratedHtml {
@@ -1593,7 +1640,7 @@ fn containers_to_html_with_last_paragraph(
 
 fn containers_to_html(
   containers: List(Container),
-  refs: Refs,
+  refs: RenderRefs,
   html: GeneratedHtml,
 ) -> GeneratedHtml {
   case containers {
@@ -1608,7 +1655,7 @@ fn containers_to_html(
 fn container_to_html(
   html: GeneratedHtml,
   container: Container,
-  refs: Refs,
+  refs: RenderRefs,
 ) -> GeneratedHtml {
   let new_html = case container {
     ThematicBreak -> html |> open_tag("hr", dict.new())
@@ -1689,7 +1736,7 @@ fn create_footnotes(
     |> result.map(fn(footnote) {
       containers_to_html_with_last_paragraph(
         footnote,
-        Refs(document.references, document.footnotes),
+        RenderRefs(document.references, document.footnotes),
         html,
         add_footnote_link(_, footnote_number),
       )
@@ -1793,7 +1840,7 @@ fn list_items_to_html(
   html: GeneratedHtml,
   layout: ListLayout,
   items: List(List(Container)),
-  refs: Refs,
+  refs: RenderRefs,
 ) -> GeneratedHtml {
   case items {
     [] -> html
@@ -1825,7 +1872,7 @@ fn list_items_to_html(
 fn inlines_to_html(
   html: GeneratedHtml,
   inlines: List(Inline),
-  refs: Refs,
+  refs: RenderRefs,
   trim: Trim,
 ) -> GeneratedHtml {
   case inlines {
@@ -1847,7 +1894,7 @@ fn inlines_to_html(
 fn inline_to_html(
   html: GeneratedHtml,
   inline: Inline,
-  refs: Refs,
+  refs: RenderRefs,
   trim: Trim,
 ) -> GeneratedHtml {
   case inline {
@@ -1974,7 +2021,7 @@ fn find_footnote_number(
 fn destination_attribute(
   key: String,
   destination: Destination,
-  refs: Refs,
+  refs: RenderRefs,
 ) -> Dict(String, String) {
   let dict = dict.new()
   case destination {
