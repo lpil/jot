@@ -10,14 +10,19 @@ import jot
 import jot_test/support
 
 pub fn main() {
+  io.println_error("Running integration tests")
   integration_tests()
+  io.print_error("\nRunning unit tests")
   gleeunit.main()
 }
 
 fn integration_tests() {
   let tests = support.load_example_test_cases()
   case tests |> list.map(run_testcase) |> result.partition {
-    #(_, []) -> Nil
+    #(passes, []) -> {
+      let count = int.to_string(list.length(passes))
+      io.println_error("\n" <> count <> " tests passed")
+    }
     #(_, errors) -> {
       let count = int.to_string(list.length(errors))
       io.println_error("\n\n" <> count <> " tests failed")
