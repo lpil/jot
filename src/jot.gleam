@@ -889,7 +889,6 @@ fn take_block_quote_stop_on_div_close(
     Some(size) ->
       case check_line_suitable_div_end(line, size) {
         True -> {
-          // Include the div end line in the rest so parse_div_content can detect it
           let rest_with_div_end = case rest {
             "" -> line
             _ -> line <> "\n" <> rest
@@ -1538,7 +1537,6 @@ fn search_paragraph_for_div_end(
   let #(line, rest) = slurp_to_line_end(in)
   case check_line_suitable_div_end(line, size) {
     True -> {
-      // Include the div end line in the rest so parse_div_content can detect it
       let rest_with_div_end = case rest {
         "" -> line
         _ -> line <> "\n" <> rest
