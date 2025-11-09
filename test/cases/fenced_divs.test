@@ -132,3 +132,27 @@ before a closing fence, the fenced div is implicitly closed.
 </code></pre>
 </div>
 ````
+
+Headings should parse correctly after a div.
+
+```
+# Title
+
+::: mobile-images
+content in div
+:::
+
+Some paragraph text.
+
+## Development
+
+More text.
+.
+<h1 id="Title">Title</h1>
+<div class="mobile-images">
+<p>content in div</p>
+</div>
+<p>Some paragraph text.</p>
+<h2 id="Development">Development</h2>
+<p>More text.</p>
+```
