@@ -888,13 +888,7 @@ fn take_block_quote_stop_on_div_close(
       }
     Some(size) ->
       case check_line_suitable_div_end(line, size) {
-        True -> {
-          let rest_with_div_end = case rest {
-            "" -> line
-            _ -> line <> "\n" <> rest
-          }
-          #(lines, rest_with_div_end)
-        }
+        True -> #(lines, in)
         False ->
           case rest {
             "" -> #([line, ..lines], "")
@@ -1536,13 +1530,7 @@ fn search_paragraph_for_div_end(
 ) -> #(String, String) {
   let #(line, rest) = slurp_to_line_end(in)
   case check_line_suitable_div_end(line, size) {
-    True -> {
-      let rest_with_div_end = case rest {
-        "" -> line
-        _ -> line <> "\n" <> rest
-      }
-      #(acc |> list.reverse |> string.join("\n"), rest_with_div_end)
-    }
+    True -> #(acc |> list.reverse |> string.join("\n"), in)
     False -> {
       case rest {
         "" -> #([line, ..acc] |> list.reverse |> string.join("\n"), "")
