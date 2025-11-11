@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed parsing of content after div blocks.
+
 ## v7.1.0 - 2025-10-13
 
 - Added support for auto ids for headings that have the same content as
