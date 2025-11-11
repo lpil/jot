@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v7.1.1 - 2025-11-11
 
 - Fixed parsing of content after div blocks.
 
