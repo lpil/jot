@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Added support for inline attributes on links and images.
+- Added support for attributes on reference definitions.
+- Added support for span elements with attributes.
+- Added support for autolinks for URLs and email addresses.
+- Added support for nested links and images.
+- Fixed parsing of emphasis markers inside failed link constructs.
+
 ## v7.1.1 - 2025-11-11
 
 - Fixed parsing of content after div blocks.
