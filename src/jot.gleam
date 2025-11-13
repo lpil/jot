@@ -14,6 +14,7 @@ pub type Document {
   Document(
     content: List(Container),
     references: Dict(String, String),
+    reference_attributes: Dict(String, Dict(String, String)),
     footnotes: Dict(String, List(Container)),
   )
 }
@@ -54,8 +55,17 @@ pub type Inline {
   Linebreak
   NonBreakingSpace
   Text(String)
-  Link(content: List(Inline), destination: Destination)
-  Image(content: List(Inline), destination: Destination)
+  Link(
+    attributes: Dict(String, String),
+    content: List(Inline),
+    destination: Destination,
+  )
+  Image(
+    attributes: Dict(String, String),
+    content: List(Inline),
+    destination: Destination,
+  )
+  Span(attributes: Dict(String, String), content: List(Inline))
   Emphasis(content: List(Inline))
   Strong(content: List(Inline))
   Footnote(reference: String)
@@ -77,6 +87,7 @@ pub type Destination {
 type Refs {
   Refs(
     urls: Dict(String, String),
+    url_attributes: Dict(String, Dict(String, String)),
     headings: Dict(String, Int),
     footnotes: Dict(String, List(Container)),
   )
@@ -133,13 +144,14 @@ pub fn parse(djot: String) -> Document {
         "\n",
         "--",
         "...",
+        "<",
       ]),
       link_destination: splitter.new([")", "]", "\n"]),
       math_end: splitter.new(["`"]),
     )
-  let refs = Refs(dict.new(), dict.new(), dict.new())
+  let refs = Refs(dict.new(), dict.new(), dict.new(), dict.new())
 
-  let #(ast, Refs(urls:, footnotes:, headings:), _) =
+  let #(ast, Refs(urls:, url_attributes:, footnotes:, headings:), _) =
     djot
     |> string.replace("\r\n", "\n")
     |> parse_document_content(refs, splitters, [], dict.new())
@@ -158,7 +170,7 @@ pub fn parse(djot: String) -> Document {
       })
     })
 
-  Document(ast, urls, footnotes)
+  Document(ast, urls, url_attributes, footnotes)
 }
 
 fn int_fold_down_zero_inclusive(
@@ -392,7 +404,15 @@ fn parse_container(
           #(in, refs, Some(paragraph), dict.new())
         }
         Some(#(id, url, in)) -> {
-          let refs = Refs(..refs, urls: dict.insert(refs.urls, id, url))
+          let refs =
+            Refs(
+              ..refs,
+              urls: dict.insert(refs.urls, id, url),
+              url_attributes: case dict.is_empty(attrs) {
+                True -> refs.url_attributes
+                False -> dict.insert(refs.url_attributes, id, attrs)
+              },
+            )
           #(in, refs, None, dict.new())
         }
       }
@@ -1129,19 +1149,21 @@ fn parse_inline(
     // Link and image
     #(a, "[", in) -> {
       let text = text <> a
-      case parse_link(in, splitters, Link) {
-        None -> parse_inline(in, splitters, text <> "[", acc)
-        Some(#(link, in)) ->
-          parse_inline(in, splitters, "", [link, Text(text), ..acc])
+      case parse_link_or_recover(in, splitters, Link, "[") {
+        Error(#(failed_text, remaining)) ->
+          parse_inline(remaining, splitters, text <> failed_text, acc)
+        Ok(#(link, remaining)) ->
+          parse_inline(remaining, splitters, "", [link, Text(text), ..acc])
       }
     }
 
     #(a, "![", in) -> {
       let text = text <> a
-      case parse_link(in, splitters, Image) {
-        None -> parse_inline(in, splitters, text <> "![", acc)
-        Some(#(image, in)) ->
-          parse_inline(in, splitters, "", [image, Text(text), ..acc])
+      case parse_link_or_recover(in, splitters, Image, "![") {
+        Error(#(failed_text, remaining)) ->
+          parse_inline(remaining, splitters, text <> failed_text, acc)
+        Ok(#(image, remaining)) ->
+          parse_inline(remaining, splitters, "", [image, Text(text), ..acc])
       }
     }
 
@@ -1178,11 +1200,51 @@ fn parse_inline(
       }
     }
 
+    // Autolinks
+    #(a, "<", in) -> {
+      let text = text <> a
+      case parse_autolink(in) {
+        None -> parse_inline(in, splitters, text <> "<", acc)
+        Some(#(link, in)) ->
+          parse_inline(in, splitters, "", [link, Text(text), ..acc])
+      }
+    }
+
     #(text2, text3, in) ->
       case text <> text2 <> text3 {
         "" -> #(list.reverse(acc), in)
         text -> #(list.reverse([Text(text), ..acc]), in)
       }
+  }
+}
+
+fn parse_autolink(in: String) -> Option(#(Inline, String)) {
+  case string.split_once(in, ">") {
+    Error(_) -> None
+    Ok(#(url, rest)) -> {
+      // Check if it looks like an email or URL
+      case string.contains(url, "@") {
+        True -> {
+          // Email autolink
+          let href = "mailto:" <> url
+          Some(#(
+            Link(dict.new(), [Text(url)], Url(href)),
+            rest,
+          ))
+        }
+        False -> {
+          // URL autolink - check if it has a scheme
+          case string.contains(url, "://") || string.starts_with(url, "//") {
+            True ->
+              Some(#(
+                Link(dict.new(), [Text(url)], Url(url)),
+                rest,
+              ))
+            False -> None
+          }
+        }
+      }
+    }
   }
 }
 
@@ -1308,43 +1370,167 @@ fn take_emphasis_chars(
   }
 }
 
+fn parse_link_or_recover(
+  in: String,
+  splitters: Splitters,
+  to_inline: fn(Dict(String, String), List(Inline), Destination) -> Inline,
+  opening: String,
+) -> Result(#(Inline, String), #(String, String)) {
+  case parse_link(in, splitters, to_inline) {
+    Some(#(inline, remaining)) -> Ok(#(inline, remaining))
+    None -> {
+      // Link parsing failed - consume until we find a clear boundary
+      // to avoid partial parsing of emphasis markers inside
+      let #(consumed, remaining) = consume_until_space_or_newline(in, "")
+      Error(#(opening <> consumed, remaining))
+    }
+  }
+}
+
+fn consume_until_space_or_newline(
+  in: String,
+  acc: String,
+) -> #(String, String) {
+  case in {
+    "" -> #(acc, "")
+    " " <> _ -> #(acc, in)
+    "\n" <> _ -> #(acc, in)
+    _ ->
+      case string.pop_grapheme(in) {
+        Ok(#(c, rest)) -> consume_until_space_or_newline(rest, acc <> c)
+        Error(_) -> #(acc, "")
+      }
+  }
+}
+
 fn parse_link(
   in: String,
   splitters: Splitters,
-  to_inline: fn(List(Inline), Destination) -> Inline,
+  to_inline: fn(Dict(String, String), List(Inline), Destination) -> Inline,
 ) -> Option(#(Inline, String)) {
-  case take_link_chars(in, "", splitters) {
-    // This wasn't a link, it was just a `[` in the text
+  case take_link_chars_or_span(in, "", splitters) {
+    // This wasn't a link/span, it was just a `[` in the text
     None -> None
 
-    Some(#(inline_in, ref, in)) -> {
+    // Span with attributes [text]{attrs}
+    Some(#(inline_in, None, in)) -> {
+      let #(inline, inline_in_remaining) =
+        parse_inline(inline_in, splitters, "", [])
+      // Check for attributes after ]
+      case in {
+        "{" <> rest ->
+          case parse_attributes(rest, dict.new()) {
+            Some(#(attrs, in)) ->
+              Some(#(Span(attrs, inline), inline_in_remaining <> in))
+            None -> None
+          }
+        _ -> None
+      }
+    }
+
+    // Link/Image with destination
+    Some(#(inline_in, Some(ref), in)) -> {
       let #(inline, inline_in_remaining) =
         parse_inline(inline_in, splitters, "", [])
       let ref = case ref {
         Reference("") -> Reference(take_inline_text(inline, ""))
         ref -> ref
       }
-      Some(#(to_inline(inline, ref), inline_in_remaining <> in))
+      // Check for attributes after the link destination
+      let #(attrs, in) = case in {
+        "{" <> rest ->
+          case parse_attributes(rest, dict.new()) {
+            Some(#(attrs, in)) -> #(attrs, in)
+            None -> #(dict.new(), in)
+          }
+        _ -> #(dict.new(), in)
+      }
+      Some(#(to_inline(attrs, inline, ref), inline_in_remaining <> in))
     }
   }
 }
 
-fn take_link_chars(
+fn take_link_chars_or_span(
   in: String,
   inline_in: String,
   splitters: Splitters,
-) -> Option(#(String, Destination, String)) {
-  case string.split_once(in, "]") {
-    Ok(#(before, "[" <> in)) ->
-      take_link_chars_destination(in, False, inline_in <> before, splitters, "")
+) -> Option(#(String, Option(Destination), String)) {
+  take_link_chars_or_span_depth(in, inline_in, splitters, 0)
+}
 
-    Ok(#(before, "(" <> in)) ->
-      take_link_chars_destination(in, True, inline_in <> before, splitters, "")
+fn take_link_chars_or_span_depth(
+  in: String,
+  inline_in: String,
+  splitters: Splitters,
+  depth: Int,
+) -> Option(#(String, Option(Destination), String)) {
+  case in {
+    "" -> None
 
-    Ok(#(before, in)) -> take_link_chars(in, inline_in <> before, splitters)
+    "![" <> rest ->
+      // Nested image - increase depth
+      take_link_chars_or_span_depth(
+        rest,
+        inline_in <> "![",
+        splitters,
+        depth + 1,
+      )
 
-    // This wasn't a link, it was just a `[..]` in the text
-    Error(_) -> None
+    "[" <> rest ->
+      // Nested opening bracket - increase depth
+      take_link_chars_or_span_depth(
+        rest,
+        inline_in <> "[",
+        splitters,
+        depth + 1,
+      )
+
+    "]" <> rest if depth > 0 ->
+      // This ] closes a nested bracket
+      take_link_chars_or_span_depth(
+        rest,
+        inline_in <> "]",
+        splitters,
+        depth - 1,
+      )
+
+    "][" <> rest if depth == 0 -> {
+      // This is ][  - reference link
+      case take_link_chars_destination(rest, False, inline_in, splitters, "") {
+        Some(#(inline_in, dest, in)) -> Some(#(inline_in, Some(dest), in))
+        None -> None
+      }
+    }
+
+    "](" <> rest if depth == 0 -> {
+      // This is ](  - inline link
+      case take_link_chars_destination(rest, True, inline_in, splitters, "") {
+        Some(#(inline_in, dest, in)) -> Some(#(inline_in, Some(dest), in))
+        None -> None
+      }
+    }
+
+    "]{" <> rest if depth == 0 ->
+      // This is ]{  - span with attributes
+      Some(#(inline_in, None, "{" <> rest))
+
+    "]" <> _ if depth == 0 ->
+      // Just ] without continuation - not a link
+      None
+
+    _ -> {
+      // Consume one character and continue
+      case string.pop_grapheme(in) {
+        Ok(#(c, rest)) ->
+          take_link_chars_or_span_depth(
+            rest,
+            inline_in <> c,
+            splitters,
+            depth,
+          )
+        Error(_) -> None
+      }
+    }
   }
 }
 
@@ -1412,7 +1598,7 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
           take_inline_text(rest, acc <> text)
         Strong(inlines) | Emphasis(inlines) ->
           take_inline_text(list.append(inlines, rest), acc)
-        Link(nested, _) | Image(nested, _) -> {
+        Link(_, nested, _) | Image(_, nested, _) | Span(_, nested) -> {
           let acc = take_inline_text(nested, acc)
           take_inline_text(rest, acc)
         }
@@ -1552,6 +1738,7 @@ fn slurp_to_line_end(in: String) -> #(String, String) {
 type RenderRefs {
   RenderRefs(
     urls: Dict(String, String),
+    reference_attributes: Dict(String, Dict(String, String)),
     footnotes: Dict(String, List(Container)),
   )
 }
@@ -1564,7 +1751,11 @@ pub fn document_to_html(document: Document) -> String {
   let generated_html =
     containers_to_html(
       document.content,
-      RenderRefs(urls: document.references, footnotes: document.footnotes),
+      RenderRefs(
+        urls: document.references,
+        reference_attributes: document.reference_attributes,
+        footnotes: document.footnotes,
+      ),
       GeneratedHtml("", []),
     )
 
@@ -1734,7 +1925,11 @@ fn create_footnotes(
     |> result.map(fn(footnote) {
       containers_to_html_with_last_paragraph(
         footnote,
-        RenderRefs(document.references, document.footnotes),
+        RenderRefs(
+          document.references,
+          document.reference_attributes,
+          document.footnotes,
+        ),
         html,
         add_footnote_link(_, footnote_number),
       )
@@ -1943,19 +2138,34 @@ fn inline_to_html(
       |> inlines_to_html(inlines, refs, trim)
       |> close_tag("em")
     }
-    Link(text, destination) -> {
+    Link(attributes, text, destination) -> {
+      // Merge: reference attrs <- href <- inline attrs
+      let ref_attrs = get_reference_attributes(destination, refs)
+      let attrs =
+        ref_attrs
+        |> dict.merge(destination_attribute("href", destination, refs))
+        |> dict.merge(attributes)
       html
-      |> open_tag("a", destination_attribute("href", destination, refs))
+      |> open_tag("a", attrs)
       |> inlines_to_html(text, refs, trim)
       |> close_tag("a")
     }
-    Image(text, destination) -> {
+    Image(attributes, text, destination) -> {
+      // Merge: reference attrs <- src/alt <- inline attrs
+      let ref_attrs = get_reference_attributes(destination, refs)
+      let attrs =
+        ref_attrs
+        |> dict.merge(destination_attribute("src", destination, refs))
+        |> dict.insert("alt", houdini.escape(take_inline_text(text, "")))
+        |> dict.merge(attributes)
       html
-      |> open_tag(
-        "img",
-        destination_attribute("src", destination, refs)
-          |> dict.insert("alt", houdini.escape(take_inline_text(text, ""))),
-      )
+      |> open_tag("img", attrs)
+    }
+    Span(attributes, inlines) -> {
+      html
+      |> open_tag("span", attributes)
+      |> inlines_to_html(inlines, refs, trim)
+      |> close_tag("span")
     }
     Code(content) -> {
       let content = houdini.escape(content)
@@ -2013,6 +2223,18 @@ fn find_footnote_number(
       #(int.to_string(index), used_footnotes)
     }
     [_, ..rest] -> find_footnote_number(rest, reference, used_footnotes)
+  }
+}
+
+fn get_reference_attributes(
+  destination: Destination,
+  refs: RenderRefs,
+) -> Dict(String, String) {
+  case destination {
+    Url(_) -> dict.new()
+    Reference(id) ->
+      dict.get(refs.reference_attributes, id)
+      |> result.unwrap(dict.new())
   }
 }
 
