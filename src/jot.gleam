@@ -1227,19 +1227,12 @@ fn parse_autolink(in: String) -> Option(#(Inline, String)) {
         True -> {
           // Email autolink
           let href = "mailto:" <> url
-          Some(#(
-            Link(dict.new(), [Text(url)], Url(href)),
-            rest,
-          ))
+          Some(#(Link(dict.new(), [Text(url)], Url(href)), rest))
         }
         False -> {
           // URL autolink - check if it has a scheme
           case string.contains(url, "://") || string.starts_with(url, "//") {
-            True ->
-              Some(#(
-                Link(dict.new(), [Text(url)], Url(url)),
-                rest,
-              ))
+            True -> Some(#(Link(dict.new(), [Text(url)], Url(url)), rest))
             False -> None
           }
         }
@@ -1387,10 +1380,7 @@ fn parse_link_or_recover(
   }
 }
 
-fn consume_until_space_or_newline(
-  in: String,
-  acc: String,
-) -> #(String, String) {
+fn consume_until_space_or_newline(in: String, acc: String) -> #(String, String) {
   case in {
     "" -> #(acc, "")
     " " <> _ -> #(acc, in)
@@ -1522,12 +1512,7 @@ fn take_link_chars_or_span_depth(
       // Consume one character and continue
       case string.pop_grapheme(in) {
         Ok(#(c, rest)) ->
-          take_link_chars_or_span_depth(
-            rest,
-            inline_in <> c,
-            splitters,
-            depth,
-          )
+          take_link_chars_or_span_depth(rest, inline_in <> c, splitters, depth)
         Error(_) -> None
       }
     }
