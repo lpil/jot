@@ -8,7 +8,7 @@ A parser for [Djot][djot], a markdown-like language.
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/jot/)
 
 ```sh
-gleam add jot@7
+gleam add jot@8
 ```
 
 ```gleam

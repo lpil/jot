@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v8.0.0 - 2025-11-28
 
 - Added support for inline attributes on links and images.
 - Added support for attributes on reference definitions.
