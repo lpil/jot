@@ -46,14 +46,17 @@ This project is a work in progress. So far it supports:
 - [x] Emphasis and strong
 - [x] Footnotes
 - [x] Headings
-- [x] Images
+- [x] Images (with attributes support)
 - [x] Inline code
-- [x] Links (inline and reference)
+- [x] Links (inline and reference, with attributes support)
+- [x] Autolinks (email and URL)
 - [x] Lists (without nesting)
 - [x] Manual line breaks
 - [x] Maths (inline and display)
 - [x] Paragraphs
 - [x] Raw blocks
+- [x] Span with attributes
 - [x] Thematic breaks
 - [x] Smart replacing of hyphens with dashes
 - [x] Smart replacing of `...` with ellipsis
+- [x] Non-breaking spaces
