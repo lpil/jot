@@ -109,6 +109,7 @@ pub type Inline {
   Code(content: String)
   MathInline(content: String)
   MathDisplay(content: String)
+  Symbol(content: String)
 }
 
 pub type ListLayout {
@@ -169,23 +170,8 @@ pub fn parse(djot: String) -> Document {
       verbatim_line_end: splitter.new([" ", "\n"]),
       codeblock_language: splitter.new(["`", "\n"]),
       inline: splitter.new([
-        "\\",
-        "_",
-        "*",
-        "[^",
-        "[",
-        "![",
-        "$$`",
-        "$`",
-        "`",
-        "\n",
-        "--",
-        "...",
-        "<",
-        "{-",
-        "{+",
-        "{=",
-        "{",
+        "\\", "_", "*", "[^", "[", "![", "$$`", "$`", "`", "\n", "--", "...",
+        "<", "{-", "{+", "{=", "{", ":",
       ]),
       link_destination: splitter.new([")", "]", "\n"]),
       math_end: splitter.new(["`"]),
@@ -1413,6 +1399,16 @@ fn parse_inline(
       }
     }
 
+    // Symbols
+    #(a, ":", in) -> {
+      let text = text <> a
+      case parse_symbol(in) {
+        None -> parse_inline(in, splitters, text <> ":", acc)
+        Some(#(symbol, in)) ->
+          parse_inline(in, splitters, "", [symbol, Text(text), ..acc])
+      }
+    }
+
     #(text2, text3, in) ->
       case text <> text2 <> text3 {
         "" -> #(list.reverse(acc), in)
@@ -1441,6 +1437,92 @@ fn parse_autolink(in: String) -> Option(#(Inline, String)) {
         }
       }
     }
+  }
+}
+
+fn parse_symbol(in: String) -> Option(#(Inline, String)) {
+  case take_symbol_chars(in, "") {
+    Some(#(text, rest)) -> Some(#(Symbol(text), rest))
+    _ -> None
+  }
+}
+
+// The Djot syntax reference says "Surrounding a word with : signs creates
+// a “symbol,”  which by default is just rendered literally. "a word" is
+// not defined in that document. Per djoths, a symbol's name matches
+// the regexp [-_+a-zA-Z09]+, see:
+// https://github.com/jgm/djoths/blob/83dbadd6aa325ff23f0e4144221b0df2c64becc7/src/Djot/Inlines.hs#L213-L221
+fn take_symbol_chars(in: String, acc: String) -> Option(#(String, String)) {
+  case in {
+    "" -> None
+    ":" <> _ if acc == "" -> None
+    ":" <> rest -> Some(#(acc, rest))
+    "a" as c <> rest
+    | "b" as c <> rest
+    | "c" as c <> rest
+    | "d" as c <> rest
+    | "e" as c <> rest
+    | "f" as c <> rest
+    | "g" as c <> rest
+    | "h" as c <> rest
+    | "i" as c <> rest
+    | "j" as c <> rest
+    | "k" as c <> rest
+    | "l" as c <> rest
+    | "m" as c <> rest
+    | "n" as c <> rest
+    | "o" as c <> rest
+    | "p" as c <> rest
+    | "q" as c <> rest
+    | "r" as c <> rest
+    | "s" as c <> rest
+    | "t" as c <> rest
+    | "u" as c <> rest
+    | "v" as c <> rest
+    | "w" as c <> rest
+    | "x" as c <> rest
+    | "y" as c <> rest
+    | "z" as c <> rest
+    | "A" as c <> rest
+    | "B" as c <> rest
+    | "C" as c <> rest
+    | "D" as c <> rest
+    | "E" as c <> rest
+    | "F" as c <> rest
+    | "G" as c <> rest
+    | "H" as c <> rest
+    | "I" as c <> rest
+    | "J" as c <> rest
+    | "K" as c <> rest
+    | "L" as c <> rest
+    | "M" as c <> rest
+    | "N" as c <> rest
+    | "O" as c <> rest
+    | "P" as c <> rest
+    | "Q" as c <> rest
+    | "R" as c <> rest
+    | "S" as c <> rest
+    | "T" as c <> rest
+    | "U" as c <> rest
+    | "V" as c <> rest
+    | "W" as c <> rest
+    | "X" as c <> rest
+    | "Y" as c <> rest
+    | "Z" as c <> rest
+    | "0" as c <> rest
+    | "1" as c <> rest
+    | "2" as c <> rest
+    | "3" as c <> rest
+    | "4" as c <> rest
+    | "5" as c <> rest
+    | "6" as c <> rest
+    | "7" as c <> rest
+    | "8" as c <> rest
+    | "9" as c <> rest
+    | "_" as c <> rest
+    | "-" as c <> rest
+    | "+" as c <> rest -> take_symbol_chars(rest, acc <> c)
+    _ -> None
   }
 }
 
@@ -1797,8 +1879,11 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
     [first, ..rest] ->
       case first {
         NonBreakingSpace -> take_inline_text(rest, acc <> " ")
-        Text(text) | Code(text) | MathInline(text) | MathDisplay(text) ->
-          take_inline_text(rest, acc <> text)
+        Text(text)
+        | Code(text)
+        | MathInline(text)
+        | MathDisplay(text)
+        | Symbol(text) -> take_inline_text(rest, acc <> text)
         Strong(inlines)
         | Emphasis(inlines)
         | Delete(inlines)
@@ -2741,6 +2826,15 @@ fn inline_to_html(
         |> dict.merge(attributes)
       html
       |> open_tag("img", attrs)
+    }
+    Symbol(content) -> {
+      let attrs =
+        dict.new()
+        |> add_attribute("class", "symbol")
+      html
+      |> open_tag("span", attrs)
+      |> append_to_html(content)
+      |> close_tag("span")
     }
     Span(attributes, inlines) -> {
       html

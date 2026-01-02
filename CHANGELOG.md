@@ -1,5 +1,7 @@
 # Changelog
 
+- Added support for symbols.
+
 ## v9.0.0 - 2026-01-14
 
 - Added support for inserts, deletes, and marks.
