@@ -750,7 +750,7 @@ fn parse_attributes(
   let in = drop_spaces(in)
   case in {
     "" -> None
-    "}" <> in -> parse_attributes_end(in, attrs)
+    "}" <> in -> Some(#(attrs, in))
     "#" <> in -> {
       case parse_attributes_id_or_class(in, "") {
         Some(#(id, in)) -> parse_attributes(in, add_attribute(attrs, "id", id))
@@ -833,13 +833,6 @@ fn parse_attributes_id_or_class(
         Error(_) -> Some(#(id, in))
       }
   }
-}
-
-fn parse_attributes_end(
-  in: String,
-  attrs: Dict(String, String),
-) -> Option(#(Dict(String, String), String)) {
-  Some(#(attrs, in))
 }
 
 fn parse_block_quote(
