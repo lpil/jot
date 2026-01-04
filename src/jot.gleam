@@ -988,12 +988,7 @@ fn parse_attributes_end(
   in: String,
   attrs: Dict(String, String),
 ) -> Option(#(Dict(String, String), String)) {
-  case in {
-    "" -> Some(#(attrs, ""))
-    "\n" <> in -> Some(#(attrs, in))
-    " " <> in -> parse_attributes_end(in, attrs)
-    _ -> Some(#(attrs, in))
-  }
+  Some(#(attrs, in))
 }
 
 fn parse_block_quote(
