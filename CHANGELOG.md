@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased] - 2026-01-08
+
+- Fixed inline element with attributes is inside a bulleted list not being processed correctly.
+
 ## v8.0.0 - 2025-11-28
 
 - Added support for inline attributes on links and images.
