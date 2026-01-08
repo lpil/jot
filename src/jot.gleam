@@ -984,6 +984,18 @@ fn parse_attributes_id_or_class(
   }
 }
 
+fn parse_attributes_end(
+  in: String,
+  attrs: Dict(String, String),
+) -> Option(#(Dict(String, String), String)) {
+  case in {
+    "" -> Some(#(attrs, ""))
+    "\n" <> in -> Some(#(attrs, in))
+    " " <> in -> parse_attributes_end(in, attrs)
+    _ -> None
+  }
+}
+
 fn parse_block_quote(
   in: String,
   refs: Refs,

@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Fixed inline element with attributes is inside a bulleted list not being processed correctly.
+
 ## v10.0.0 - 2026-01-19
 
 - Added support for symbols.
@@ -10,7 +14,6 @@
 - Added support for nested lists.
 - Added support for ordered lists.
 - Improved support for spans with attributes.
-
 ## v8.0.0 - 2025-11-28
 
 - Added support for inline attributes on links and images.
