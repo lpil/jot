@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Improved support for spans with attributes.
+
 ## v8.0.0 - 2025-11-28
 
 - Added support for inline attributes on links and images.
