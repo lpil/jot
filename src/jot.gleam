@@ -370,7 +370,7 @@ fn parse_container(
       #(in, refs, Some(block_quote), dict.new())
     }
 
-    "-" as style <> in2 | "*" as style <> in2 -> {
+    "-" as style <> in2 | "*" as style <> in2 | "+" as style <> in2 -> {
       case parse_thematic_break(1, in2), in2 {
         None, " " <> in2 | None, "\n" <> in2 -> {
           let #(list, in) =
@@ -1643,8 +1643,11 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
         NonBreakingSpace -> take_inline_text(rest, acc <> " ")
         Text(text) | Code(text) | MathInline(text) | MathDisplay(text) ->
           take_inline_text(rest, acc <> text)
-        Strong(inlines) | Emphasis(inlines) | Delete(inlines) | Insert(inlines) | Mark(inlines) ->
-          take_inline_text(list.append(inlines, rest), acc)
+        Strong(inlines)
+        | Emphasis(inlines)
+        | Delete(inlines)
+        | Insert(inlines)
+        | Mark(inlines) -> take_inline_text(list.append(inlines, rest), acc)
         Link(_, nested, _) | Image(_, nested, _) | Span(_, nested) -> {
           let acc = take_inline_text(nested, acc)
           take_inline_text(rest, acc)
@@ -1677,7 +1680,8 @@ fn parse_bullet_list(
   items: List(List(Container)),
   splitters: Splitters,
 ) -> #(Container, String) {
-  let #(inline_in, in, end) = take_list_item_chars(in, "", style)
+  let #(inline_in, in, end, layout) =
+    take_list_item_chars(in, "", style, layout)
   let item = parse_list_item(inline_in, refs, attrs, splitters, [])
   let items = [item, ..items]
   case end {
@@ -1709,19 +1713,35 @@ fn take_list_item_chars(
   in: String,
   acc: String,
   style: String,
-) -> #(String, String, Bool) {
-  let #(in, acc) = case string.split_once(in, "\n") {
-    Ok(#(content, in)) -> #(in, acc <> content)
-    Error(_) -> #("", acc <> in)
+  layout: ListLayout,
+) -> #(String, String, Bool, ListLayout) {
+  let #(line, in) = case string.split_once(in, "\n") {
+    Ok(split) -> split
+    Error(_) -> #(in, "")
   }
+  let acc = acc <> line
 
   case in {
-    " " <> in -> take_list_item_chars(in, acc <> "\n ", style)
-    "- " <> in if style == "-" -> #(acc, in, False)
-    "\n- " <> in if style == "-" -> #(acc, in, False)
-    "* " <> in if style == "*" -> #(acc, in, False)
-    "\n* " <> in if style == "*" -> #(acc, in, False)
-    _ -> #(acc, in, True)
+    "" -> #(acc, "", True, layout)
+    " " <> _ -> take_list_item_chars(in, acc <> "\n", style, layout)
+
+    // Next item (tight, no line between them)
+    "- " <> in if style == "-" -> #(acc, in, False, layout)
+    "* " <> in if style == "*" -> #(acc, in, False, layout)
+    "+ " <> in if style == "+" -> #(acc, in, False, layout)
+
+    // Next item (loose, a line between them)
+    "\n- " <> in if style == "-" -> #(acc, in, False, Loose)
+    "\n* " <> in if style == "*" -> #(acc, in, False, Loose)
+    "\n+ " <> in if style == "+" -> #(acc, in, False, Loose)
+
+    // Blank line
+    "\n" <> _ as in -> #(acc, in, True, layout)
+
+    // Different marker, so the start of a new list
+    "- " <> _ | "* " <> _ | "+ " <> _ -> #(acc, in, True, layout)
+
+    _ -> take_list_item_chars(in, acc <> "\n", style, layout)
   }
 }
 
@@ -2101,7 +2121,6 @@ fn list_items_to_html(
       |> open_tag("li", dict.new())
       |> append_to_html("\n")
       |> containers_to_html(item, refs, _)
-      |> append_to_html("\n")
       |> close_tag("li")
       |> append_to_html("\n")
       |> list_items_to_html(layout, rest, refs)

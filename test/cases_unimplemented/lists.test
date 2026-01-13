@@ -49,56 +49,6 @@ a list
 </ul>
 ```
 
-```
-- one
-lazy
-- two
-.
-<ul>
-<li>
-one
-lazy
-</li>
-<li>
-two
-</li>
-</ul>
-```
-
-```
-- a
-- b
-+ c
-.
-<ul>
-<li>
-a
-</li>
-<li>
-b
-</li>
-</ul>
-<ul>
-<li>
-c
-</li>
-</ul>
-```
-
-```
-- a
-
-- b
-.
-<ul>
-<li>
-<p>a</p>
-</li>
-<li>
-<p>b</p>
-</li>
-</ul>
-```
 
 ```
 - a
