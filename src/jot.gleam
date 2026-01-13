@@ -145,6 +145,7 @@ pub fn parse(djot: String) -> Document {
         "--",
         "...",
         "<",
+        "{",
       ]),
       link_destination: splitter.new([")", "]", "\n"]),
       math_end: splitter.new(["`"]),
@@ -843,7 +844,7 @@ fn parse_attributes_end(
     "" -> Some(#(attrs, ""))
     "\n" <> in -> Some(#(attrs, in))
     " " <> in -> parse_attributes_end(in, attrs)
-    _ -> None
+    _ -> Some(#(attrs, in))
   }
 }
 
@@ -1207,6 +1208,16 @@ fn parse_inline(
         None -> parse_inline(in, splitters, text <> "<", acc)
         Some(#(link, in)) ->
           parse_inline(in, splitters, "", [link, Text(text), ..acc])
+      }
+    }
+
+    // Standalone attributes (they are discarded)
+    #(a, "{", in) -> {
+      let text = text <> a
+      case parse_attributes(in, dict.new()) {
+        None -> parse_inline(in, splitters, text <> "{", acc)
+        Some(#(_attrs, in)) ->
+          parse_inline(in, splitters, "", [Text(text), ..acc])
       }
     }
 
