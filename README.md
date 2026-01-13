@@ -37,10 +37,11 @@ Further documentation can be found at <https://hexdocs.pm/jot>.
 
 This project is a work in progress. So far it supports:
 
+- [x] Autolinks (email and URL)
 - [x] Block attributes
+- [x] Block quotes
 - [x] Bullet lists without nesting
 - [x] Code blocks
-- [x] Block quotes
 - [x] Content escaping
 - [x] Div
 - [x] Emphasis and strong
@@ -48,15 +49,15 @@ This project is a work in progress. So far it supports:
 - [x] Headings
 - [x] Images (with attributes support)
 - [x] Inline code
+- [x] Inserts, deletes, and marks.
 - [x] Links (inline and reference, with attributes support)
-- [x] Autolinks (email and URL)
 - [x] Lists (without nesting)
 - [x] Manual line breaks
 - [x] Maths (inline and display)
+- [x] Non-breaking spaces
 - [x] Paragraphs
 - [x] Raw blocks
+- [x] Smart replacing of `...` with ellipsis
+- [x] Smart replacing of hyphens with dashes
 - [x] Span with attributes
 - [x] Thematic breaks
-- [x] Smart replacing of hyphens with dashes
-- [x] Smart replacing of `...` with ellipsis
-- [x] Non-breaking spaces

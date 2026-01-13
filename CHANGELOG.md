@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added support for inserts, deletes, and marks.
 - Improved support for spans with attributes.
 
 ## v8.0.0 - 2025-11-28

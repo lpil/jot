@@ -68,6 +68,9 @@ pub type Inline {
   Span(attributes: Dict(String, String), content: List(Inline))
   Emphasis(content: List(Inline))
   Strong(content: List(Inline))
+  Delete(content: List(Inline))
+  Insert(content: List(Inline))
+  Mark(content: List(Inline))
   Footnote(reference: String)
   Code(content: String)
   MathInline(content: String)
@@ -145,6 +148,9 @@ pub fn parse(djot: String) -> Document {
         "--",
         "...",
         "<",
+        "{-",
+        "{+",
+        "{=",
         "{",
       ]),
       link_destination: splitter.new([")", "]", "\n"]),
@@ -1211,6 +1217,36 @@ fn parse_inline(
       }
     }
 
+    // Delete
+    #(a, "{-", in) -> {
+      let text = text <> a
+      case parse_insert_delete_mark(in, splitters, "-}") {
+        None -> parse_inline(in, splitters, text <> "{-", acc)
+        Some(#(inner, in)) ->
+          parse_inline(in, splitters, "", [Delete(inner), Text(text), ..acc])
+      }
+    }
+
+    // Insert
+    #(a, "{+", in) -> {
+      let text = text <> a
+      case parse_insert_delete_mark(in, splitters, "+}") {
+        None -> parse_inline(in, splitters, text <> "{+", acc)
+        Some(#(inner, in)) ->
+          parse_inline(in, splitters, "", [Insert(inner), Text(text), ..acc])
+      }
+    }
+
+    // Mark
+    #(a, "{=", in) -> {
+      let text = text <> a
+      case parse_insert_delete_mark(in, splitters, "=}") {
+        None -> parse_inline(in, splitters, text <> "{=", acc)
+        Some(#(inner, in)) ->
+          parse_inline(in, splitters, "", [Mark(inner), Text(text), ..acc])
+      }
+    }
+
     // Standalone attributes (they are discarded)
     #(a, "{", in) -> {
       let text = text <> a
@@ -1371,6 +1407,21 @@ fn take_emphasis_chars(
         Ok(#(c, in)) -> take_emphasis_chars(in, close, acc <> c)
         Error(_) -> None
       }
+  }
+}
+
+fn parse_insert_delete_mark(
+  in: String,
+  splitters: Splitters,
+  close: String,
+) -> Option(#(List(Inline), String)) {
+  case string.split_once(in, close) {
+    Error(_) -> None
+    Ok(#(inline_in, rest)) -> {
+      let #(inline, inline_in_remaining) =
+        parse_inline(inline_in, splitters, "", [])
+      Some(#(inline, inline_in_remaining <> rest))
+    }
   }
 }
 
@@ -1592,7 +1643,7 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
         NonBreakingSpace -> take_inline_text(rest, acc <> " ")
         Text(text) | Code(text) | MathInline(text) | MathDisplay(text) ->
           take_inline_text(rest, acc <> text)
-        Strong(inlines) | Emphasis(inlines) ->
+        Strong(inlines) | Emphasis(inlines) | Delete(inlines) | Insert(inlines) | Mark(inlines) ->
           take_inline_text(list.append(inlines, rest), acc)
         Link(_, nested, _) | Image(_, nested, _) | Span(_, nested) -> {
           let acc = take_inline_text(nested, acc)
@@ -2133,6 +2184,24 @@ fn inline_to_html(
       |> open_tag("em", dict.new())
       |> inlines_to_html(inlines, refs, trim)
       |> close_tag("em")
+    }
+    Delete(inlines) -> {
+      html
+      |> open_tag("del", dict.new())
+      |> inlines_to_html(inlines, refs, NoTrim)
+      |> close_tag("del")
+    }
+    Insert(inlines) -> {
+      html
+      |> open_tag("ins", dict.new())
+      |> inlines_to_html(inlines, refs, NoTrim)
+      |> close_tag("ins")
+    }
+    Mark(inlines) -> {
+      html
+      |> open_tag("mark", dict.new())
+      |> inlines_to_html(inlines, refs, NoTrim)
+      |> close_tag("mark")
     }
     Link(attributes, text, destination) -> {
       // Merge: reference attrs <- href <- inline attrs
