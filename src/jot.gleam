@@ -1735,13 +1735,112 @@ fn take_list_item_chars(
     "\n* " <> in if style == "*" -> #(acc, in, False, Loose)
     "\n+ " <> in if style == "+" -> #(acc, in, False, Loose)
 
-    // Blank line
-    "\n" <> _ as in -> #(acc, in, True, layout)
+    // Blank line 
+    "\n" <> in -> {
+      case in {
+        // The blank line was followed by indented content, so this is content
+        // for this particular list item.
+        " " <> in -> {
+          let #(in, indent) = count_drop_spaces(in, 1)
+          let layout = case starts_with_list_marker(in) {
+            True -> layout
+            False -> Loose
+          }
+          let acc = acc <> "\n\n"
+          take_list_item_chars_indented(in, acc, style, layout, indent)
+        }
+
+        // The blank line was followed by non-indented content, meaning that
+        // the end of the list has been reached.
+        _ -> #(acc, in, True, layout)
+      }
+    }
 
     // Different marker, so the start of a new list
     "- " <> _ | "* " <> _ | "+ " <> _ -> #(acc, in, True, layout)
 
     _ -> take_list_item_chars(in, acc <> "\n", style, layout)
+  }
+}
+
+fn starts_with_list_marker(in: String) -> Bool {
+  case in {
+    "-" <> rest | "*" <> rest | "+" <> rest ->
+      case rest {
+        "" | " " <> _ | "\n" <> _ -> True
+        _ -> False
+      }
+    _ -> False
+  }
+}
+
+fn take_list_item_chars_indented(
+  in: String,
+  acc: String,
+  style: String,
+  layout: ListLayout,
+  indent: Int,
+) -> #(String, String, Bool, ListLayout) {
+  // Strip the indent level from this line
+  let in = drop_n_spaces(in, indent)
+  let #(line, rest) = case string.split_once(in, "\n") {
+    Ok(split) -> split
+    Error(_) -> #(in, "")
+  }
+  let acc = acc <> line
+
+  case rest {
+    "" -> #(acc, "", True, layout)
+
+    // More indented content
+    " " <> _ ->
+      take_list_item_chars_indented(rest, acc <> "\n", style, layout, indent)
+
+    // Blank line
+    "\n" <> rest2 -> {
+      case rest2 {
+        // Blank + indent -> continue indented block
+        " " <> _ -> {
+          let layout = case starts_with_list_marker(drop_spaces(rest2)) {
+            True -> layout
+            False -> Loose
+          }
+          take_list_item_chars_indented(
+            rest2,
+            acc <> "\n\n",
+            style,
+            layout,
+            indent,
+          )
+        }
+        // Blank + same marker at base level -> next item in outer list
+        // (don't set Loose - the blank was within indented content, not between outer items)
+        "- " <> rest3 if style == "-" -> #(acc, rest3, False, layout)
+        "* " <> rest3 if style == "*" -> #(acc, rest3, False, layout)
+        "+ " <> rest3 if style == "+" -> #(acc, rest3, False, layout)
+        // Blank + other -> end of list
+        _ -> #(acc, "\n" <> rest2, True, layout)
+      }
+    }
+
+    // Non-indented same marker -> next item in outer list
+    "- " <> rest2 if style == "-" -> #(acc, rest2, False, layout)
+    "* " <> rest2 if style == "*" -> #(acc, rest2, False, layout)
+    "+ " <> rest2 if style == "+" -> #(acc, rest2, False, layout)
+
+    // Non-indented other -> lazy continuation of nested content
+    _ -> take_list_item_chars_indented(rest, acc <> "\n", style, layout, indent)
+  }
+}
+
+fn drop_n_spaces(in: String, n: Int) -> String {
+  case n {
+    0 -> in
+    _ ->
+      case in {
+        " " <> rest -> drop_n_spaces(rest, n - 1)
+        _ -> in
+      }
   }
 }
 
@@ -2105,12 +2204,28 @@ fn list_items_to_html(
   case items {
     [] -> html
 
+    // Tight list with single paragraph - no <p> tag
     [[Paragraph(_, inlines)], ..rest] if layout == Tight -> {
       html
       |> open_tag("li", dict.new())
       |> append_to_html("\n")
       |> inlines_to_html(inlines, refs, TrimLast)
       |> append_to_html("\n")
+      |> close_tag("li")
+      |> append_to_html("\n")
+      |> list_items_to_html(layout, rest, refs)
+    }
+
+    // Tight list with paragraph followed by nested list - no <p> tag for paragraph
+    [[Paragraph(_, inlines), nested_list, ..item_rest], ..rest]
+      if layout == Tight
+    -> {
+      html
+      |> open_tag("li", dict.new())
+      |> append_to_html("\n")
+      |> inlines_to_html(inlines, refs, TrimLast)
+      |> append_to_html("\n")
+      |> containers_to_html([nested_list, ..item_rest], refs, _)
       |> close_tag("li")
       |> append_to_html("\n")
       |> list_items_to_html(layout, rest, refs)

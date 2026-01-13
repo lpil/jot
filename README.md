@@ -40,7 +40,7 @@ This project is a work in progress. So far it supports:
 - [x] Autolinks (email and URL)
 - [x] Block attributes
 - [x] Block quotes
-- [x] Bullet lists without nesting
+- [x] Bullet Lists
 - [x] Code blocks
 - [x] Content escaping
 - [x] Div
@@ -51,7 +51,6 @@ This project is a work in progress. So far it supports:
 - [x] Inline code
 - [x] Inserts, deletes, and marks.
 - [x] Links (inline and reference, with attributes support)
-- [x] Lists (without nesting)
 - [x] Manual line breaks
 - [x] Maths (inline and display)
 - [x] Non-breaking spaces
