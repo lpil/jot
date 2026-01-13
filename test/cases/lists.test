@@ -309,3 +309,47 @@ a
 </ul>
 ```
 
+```
+1. one
+1. two
+.
+<ol>
+<li>
+one
+</li>
+<li>
+two
+</li>
+</ol>
+```
+
+```
+1. one
+
+ 1. two
+.
+<ol>
+<li>
+one
+<ol>
+<li>
+two
+</li>
+</ol>
+</li>
+</ol>
+```
+
+```
+4. one
+5. two
+.
+<ol start="4">
+<li>
+one
+</li>
+<li>
+two
+</li>
+</ol>
+```

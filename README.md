@@ -40,7 +40,6 @@ This project is a work in progress. So far it supports:
 - [x] Autolinks (email and URL)
 - [x] Block attributes
 - [x] Block quotes
-- [x] Bullet Lists
 - [x] Code blocks
 - [x] Content escaping
 - [x] Div
@@ -54,9 +53,11 @@ This project is a work in progress. So far it supports:
 - [x] Manual line breaks
 - [x] Maths (inline and display)
 - [x] Non-breaking spaces
+- [x] Ordered lists with the `1. 2. 3.` syntax
 - [x] Paragraphs
 - [x] Raw blocks
 - [x] Smart replacing of `...` with ellipsis
 - [x] Smart replacing of hyphens with dashes
 - [x] Span with attributes
 - [x] Thematic breaks
+- [x] Unordered lists
