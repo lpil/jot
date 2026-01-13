@@ -46,9 +46,20 @@ pub type Container {
     content: String,
   )
   RawBlock(content: String)
-  BulletList(layout: ListLayout, style: String, items: List(List(Container)))
+  BulletList(
+    layout: ListLayout,
+    style: BulletStyle,
+    items: List(List(Container)),
+  )
+  OrderedList(layout: ListLayout, start: Int, items: List(List(Container)))
   BlockQuote(attributes: Dict(String, String), items: List(Container))
   Div(attributes: Dict(String, String), items: List(Container))
+}
+
+pub type BulletStyle {
+  BulletDash
+  BulletStar
+  BulletPlus
 }
 
 pub type Inline {
@@ -373,6 +384,11 @@ fn parse_container(
     "-" as style <> in2 | "*" as style <> in2 | "+" as style <> in2 -> {
       case parse_thematic_break(1, in2), in2 {
         None, " " <> in2 | None, "\n" <> in2 -> {
+          let style = case style {
+            "-" -> BulletDash
+            "*" -> BulletStar
+            _ -> BulletStar
+          }
           let #(list, in) =
             parse_bullet_list(in2, refs, attrs, style, Tight, [], splitters)
           #(in, refs, Some(list), dict.new())
@@ -384,6 +400,30 @@ fn parse_container(
         }
         Some(#(thematic_break, in)), _ -> {
           #(in, refs, Some(thematic_break), dict.new())
+        }
+      }
+    }
+
+    "0" <> _
+    | "1" <> _
+    | "2" <> _
+    | "3" <> _
+    | "4" <> _
+    | "5" <> _
+    | "6" <> _
+    | "7" <> _
+    | "8" <> _
+    | "9" <> _ -> {
+      case parse_ordered_list_start(in, 0) {
+        Some(#(start, in2)) -> {
+          let #(list, in) =
+            parse_ordered_list(in2, refs, attrs, start, Tight, [], splitters)
+          #(in, refs, Some(list), dict.new())
+        }
+        None -> {
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
+          #(in, refs, Some(paragraph), dict.new())
         }
       }
     }
@@ -1675,18 +1715,21 @@ fn parse_bullet_list(
   in: String,
   refs: Refs,
   attrs: Dict(String, String),
-  style: String,
+  style: BulletStyle,
   layout: ListLayout,
   items: List(List(Container)),
   splitters: Splitters,
 ) -> #(Container, String) {
-  let #(inline_in, in, end, layout) =
-    take_list_item_chars(in, "", style, layout)
+  let #(inline_in, in, layout) = take_list_item_chars(in, "", style, layout)
   let item = parse_list_item(inline_in, refs, attrs, splitters, [])
   let items = [item, ..items]
-  case end {
-    True -> #(BulletList(layout:, style:, items: list.reverse(items)), in)
-    False -> parse_bullet_list(in, refs, attrs, style, layout, items, splitters)
+  case parse_bullet_marker(in) {
+    Some(#(next, in)) if next == style ->
+      parse_bullet_list(in, refs, attrs, style, layout, items, splitters)
+    _ -> {
+      let container = BulletList(layout:, style:, items: list.reverse(items))
+      #(container, in)
+    }
   }
 }
 
@@ -1712,9 +1755,9 @@ fn parse_list_item(
 fn take_list_item_chars(
   in: String,
   acc: String,
-  style: String,
+  style: BulletStyle,
   layout: ListLayout,
-) -> #(String, String, Bool, ListLayout) {
+) -> #(String, String, ListLayout) {
   let #(line, in) = case string.split_once(in, "\n") {
     Ok(split) -> split
     Error(_) -> #(in, "")
@@ -1722,125 +1765,256 @@ fn take_list_item_chars(
   let acc = acc <> line
 
   case in {
-    "" -> #(acc, "", True, layout)
+    "" -> #(acc, "", layout)
     " " <> _ -> take_list_item_chars(in, acc <> "\n", style, layout)
 
-    // Next item (tight, no line between them)
-    "- " <> in if style == "-" -> #(acc, in, False, layout)
-    "* " <> in if style == "*" -> #(acc, in, False, layout)
-    "+ " <> in if style == "+" -> #(acc, in, False, layout)
-
-    // Next item (loose, a line between them)
-    "\n- " <> in if style == "-" -> #(acc, in, False, Loose)
-    "\n* " <> in if style == "*" -> #(acc, in, False, Loose)
-    "\n+ " <> in if style == "+" -> #(acc, in, False, Loose)
-
-    // Blank line 
-    "\n" <> in -> {
-      case in {
-        // The blank line was followed by indented content, so this is content
-        // for this particular list item.
-        " " <> in -> {
-          let #(in, indent) = count_drop_spaces(in, 1)
-          let layout = case starts_with_list_marker(in) {
-            True -> layout
-            False -> Loose
-          }
-          let acc = acc <> "\n\n"
-          take_list_item_chars_indented(in, acc, style, layout, indent)
-        }
-
-        // The blank line was followed by non-indented content, meaning that
-        // the end of the list has been reached.
-        _ -> #(acc, in, True, layout)
+    // A blank line followed by indented content, meaning this is
+    // content for the current list item.
+    "\n " <> rest -> {
+      let #(rest, indent) = count_drop_spaces(rest, 1)
+      let layout = case starts_with_list_marker(rest) {
+        True -> layout
+        False -> Loose
       }
+      let acc = acc <> "\n\n"
+      take_list_item_chars_indented(rest, acc, style, layout, indent)
     }
 
-    // Different marker, so the start of a new list
-    "- " <> _ | "* " <> _ | "+ " <> _ -> #(acc, in, True, layout)
+    // A blank line followed by un-indented content, so the end of this
+    // current list item.
+    "\n" <> rest -> {
+      let layout = case parse_bullet_marker(rest) {
+        Some(#(next, _)) if next == style -> Loose
+        _ -> layout
+      }
+      #(acc, rest, layout)
+    }
 
-    _ -> take_list_item_chars(in, acc <> "\n", style, layout)
+    _ -> {
+      case parse_bullet_marker(in) {
+        Some(_) -> #(acc, in, layout)
+        None -> take_list_item_chars(in, acc <> "\n", style, layout)
+      }
+    }
   }
 }
 
 fn starts_with_list_marker(in: String) -> Bool {
+  case parse_bullet_marker(in) {
+    Some(_) -> True
+    None -> False
+  }
+}
+
+fn parse_bullet_marker(in: String) -> Option(#(BulletStyle, String)) {
   case in {
-    "-" <> rest | "*" <> rest | "+" <> rest ->
-      case rest {
-        "" | " " <> _ | "\n" <> _ -> True
-        _ -> False
-      }
-    _ -> False
+    "- " <> rest | "-\n" <> rest -> Some(#(BulletDash, rest))
+    "* " <> rest | "*\n" <> rest -> Some(#(BulletStar, rest))
+    "+ " <> rest | "+\n" <> rest -> Some(#(BulletPlus, rest))
+    _ -> None
   }
 }
 
 fn take_list_item_chars_indented(
   in: String,
   acc: String,
-  style: String,
+  style: BulletStyle,
   layout: ListLayout,
   indent: Int,
-) -> #(String, String, Bool, ListLayout) {
-  // Strip the indent level from this line
+) -> #(String, String, ListLayout) {
   let in = drop_n_spaces(in, indent)
-  let #(line, rest) = case string.split_once(in, "\n") {
+  let #(line, in) = case string.split_once(in, "\n") {
     Ok(split) -> split
     Error(_) -> #(in, "")
   }
   let acc = acc <> line
 
-  case rest {
-    "" -> #(acc, "", True, layout)
+  case in {
+    "" -> #(acc, "", layout)
 
-    // More indented content
     " " <> _ ->
-      take_list_item_chars_indented(rest, acc <> "\n", style, layout, indent)
+      take_list_item_chars_indented(in, acc <> "\n", style, layout, indent)
 
-    // Blank line
-    "\n" <> rest2 -> {
-      case rest2 {
-        // Blank + indent -> continue indented block
-        " " <> _ -> {
-          let layout = case starts_with_list_marker(drop_spaces(rest2)) {
-            True -> layout
-            False -> Loose
-          }
-          take_list_item_chars_indented(
-            rest2,
-            acc <> "\n\n",
-            style,
-            layout,
-            indent,
-          )
-        }
-        // Blank + same marker at base level -> next item in outer list
-        // (don't set Loose - the blank was within indented content, not between outer items)
-        "- " <> rest3 if style == "-" -> #(acc, rest3, False, layout)
-        "* " <> rest3 if style == "*" -> #(acc, rest3, False, layout)
-        "+ " <> rest3 if style == "+" -> #(acc, rest3, False, layout)
-        // Blank + other -> end of list
-        _ -> #(acc, "\n" <> rest2, True, layout)
+    "\n " <> rest -> {
+      let layout = case starts_with_list_marker(drop_spaces(rest)) {
+        True -> layout
+        False -> Loose
       }
+      let acc = acc <> "\n\n"
+      let in = string.drop_start(in, 1)
+      take_list_item_chars_indented(in, acc, style, layout, indent)
     }
 
-    // Non-indented same marker -> next item in outer list
-    "- " <> rest2 if style == "-" -> #(acc, rest2, False, layout)
-    "* " <> rest2 if style == "*" -> #(acc, rest2, False, layout)
-    "+ " <> rest2 if style == "+" -> #(acc, rest2, False, layout)
+    // A blank line followed by un-indented content, so this is the end of this
+    // current list item.
+    "\n" <> rest2 -> #(acc, rest2, layout)
 
-    // Non-indented other -> lazy continuation of nested content
-    _ -> take_list_item_chars_indented(rest, acc <> "\n", style, layout, indent)
+    _ -> {
+      case parse_bullet_marker(in) {
+        Some(#(next, _)) if next == style -> #(acc, in, layout)
+        _ ->
+          take_list_item_chars_indented(in, acc <> "\n", style, layout, indent)
+      }
+    }
   }
 }
 
-fn drop_n_spaces(in: String, n: Int) -> String {
-  case n {
-    0 -> in
-    _ ->
-      case in {
-        " " <> rest -> drop_n_spaces(rest, n - 1)
-        _ -> in
+fn drop_n_spaces(in: String, count: Int) -> String {
+  case in {
+    _ if count == 0 -> in
+    " " <> rest -> drop_n_spaces(rest, count - 1)
+    _ -> in
+  }
+}
+
+fn parse_ordered_list_start(in: String, num: Int) -> Option(#(Int, String)) {
+  case in {
+    "0" <> rest -> parse_ordered_list_start(rest, num * 10 + 0)
+    "1" <> rest -> parse_ordered_list_start(rest, num * 10 + 1)
+    "2" <> rest -> parse_ordered_list_start(rest, num * 10 + 2)
+    "3" <> rest -> parse_ordered_list_start(rest, num * 10 + 3)
+    "4" <> rest -> parse_ordered_list_start(rest, num * 10 + 4)
+    "5" <> rest -> parse_ordered_list_start(rest, num * 10 + 5)
+    "6" <> rest -> parse_ordered_list_start(rest, num * 10 + 6)
+    "7" <> rest -> parse_ordered_list_start(rest, num * 10 + 7)
+    "8" <> rest -> parse_ordered_list_start(rest, num * 10 + 8)
+    "9" <> rest -> parse_ordered_list_start(rest, num * 10 + 9)
+    ". " <> rest | ".\n" <> rest -> Some(#(num, rest))
+    _ -> None
+  }
+}
+
+fn parse_ordered_list(
+  in: String,
+  refs: Refs,
+  attrs: Dict(String, String),
+  start: Int,
+  layout: ListLayout,
+  items: List(List(Container)),
+  splitters: Splitters,
+) -> #(Container, String) {
+  let #(inline_in, in, layout) = take_ordered_list_item_chars(in, "", layout)
+  let item = parse_list_item(inline_in, refs, attrs, splitters, [])
+  let items = [item, ..items]
+  case drop_ordered_list_marker(in) {
+    Some(in) ->
+      parse_ordered_list(in, refs, attrs, start, layout, items, splitters)
+    None -> #(OrderedList(layout:, start:, items: list.reverse(items)), in)
+  }
+}
+
+fn take_ordered_list_item_chars(
+  in: String,
+  acc: String,
+  layout: ListLayout,
+) -> #(String, String, ListLayout) {
+  let #(line, in) = case string.split_once(in, "\n") {
+    Ok(split) -> split
+    Error(_) -> #(in, "")
+  }
+  let acc = acc <> line
+
+  case in {
+    "" -> #(acc, "", layout)
+    " " <> _ -> take_ordered_list_item_chars(in, acc <> "\n", layout)
+
+    // A blank line followed by indented content, meaning this is
+    // content for the current list item.
+    "\n " <> rest -> {
+      let #(rest, indent) = count_drop_spaces(rest, 1)
+      let layout = case starts_with_ordered_list_marker(rest) {
+        True -> layout
+        False -> Loose
       }
+      let acc = acc <> "\n\n"
+      take_ordered_list_item_chars_indented(rest, acc, layout, indent)
+    }
+
+    // A blank line followed by un-indented content, so the end of this
+    // current list item.
+    "\n" <> rest -> {
+      let layout = case starts_with_ordered_list_marker(rest) {
+        True -> Loose
+        False -> layout
+      }
+      #(acc, rest, layout)
+    }
+
+    // Next item marker or other content
+    _ -> {
+      case starts_with_ordered_list_marker(in) {
+        True -> #(acc, in, layout)
+        False -> take_ordered_list_item_chars(in, acc <> "\n", layout)
+      }
+    }
+  }
+}
+
+fn take_ordered_list_item_chars_indented(
+  in: String,
+  acc: String,
+  layout: ListLayout,
+  indent: Int,
+) -> #(String, String, ListLayout) {
+  let in = drop_n_spaces(in, indent)
+  let #(line, in) = case string.split_once(in, "\n") {
+    Ok(split) -> split
+    Error(_) -> #(in, "")
+  }
+  let acc = acc <> line
+
+  case in {
+    "" -> #(acc, "", layout)
+
+    " " <> _ ->
+      take_ordered_list_item_chars_indented(in, acc <> "\n", layout, indent)
+
+    // New line with indented content, it's content for the current list item.
+    "\n " <> rest -> {
+      let layout = case starts_with_ordered_list_marker(drop_spaces(rest)) {
+        True -> layout
+        False -> Loose
+      }
+      let in = string.drop_start(in, 1)
+      take_ordered_list_item_chars_indented(in, acc <> "\n\n", layout, indent)
+    }
+
+    // New line with other content, the current list item has ended.
+    "\n" <> rest2 -> #(acc, rest2, layout)
+
+    _ -> {
+      case starts_with_ordered_list_marker(in) {
+        True -> #(acc, in, layout)
+        False -> {
+          let acc = acc <> "\n"
+          take_ordered_list_item_chars_indented(in, acc, layout, indent)
+        }
+      }
+    }
+  }
+}
+
+fn drop_ordered_list_marker(in: String) -> Option(String) {
+  case in {
+    "0" <> rest
+    | "1" <> rest
+    | "2" <> rest
+    | "3" <> rest
+    | "4" <> rest
+    | "5" <> rest
+    | "6" <> rest
+    | "7" <> rest
+    | "8" <> rest
+    | "9" <> rest -> drop_ordered_list_marker(rest)
+    ". " <> rest | ".\n" <> rest -> Some(rest)
+    _ -> None
+  }
+}
+
+fn starts_with_ordered_list_marker(in: String) -> Bool {
+  case drop_ordered_list_marker(in) {
+    Some(_) -> True
+    None -> False
   }
 }
 
@@ -2051,6 +2225,18 @@ fn container_to_html(
       |> append_to_html("\n")
       |> list_items_to_html(layout, items, refs)
       |> close_tag("ul")
+    }
+
+    OrderedList(layout:, start:, items:) -> {
+      let attrs = case start {
+        1 -> dict.new()
+        _ -> dict.from_list([#("start", int.to_string(start))])
+      }
+      html
+      |> open_tag("ol", attrs)
+      |> append_to_html("\n")
+      |> list_items_to_html(layout, items, refs)
+      |> close_tag("ol")
     }
 
     BlockQuote(attrs, items) ->
