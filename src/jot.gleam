@@ -2588,7 +2588,6 @@ fn list_items_to_html(
   case items {
     [] -> html
 
-    // Tight list with single paragraph - no <p> tag
     [[Paragraph(_, inlines)], ..rest] if layout == Tight -> {
       html
       |> open_tag("li", dict.new())
@@ -2600,7 +2599,6 @@ fn list_items_to_html(
       |> list_items_to_html(layout, rest, refs)
     }
 
-    // Tight list with paragraph followed by nested list - no <p> tag for paragraph
     [[Paragraph(_, inlines), nested_list, ..item_rest], ..rest]
       if layout == Tight
     -> {
