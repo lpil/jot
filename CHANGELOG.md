@@ -1,12 +1,11 @@
 # Changelog
 
-## Unreleased
+## v9.0.0 - Unreleased
 
 - Added support for inserts, deletes, and marks.
 - Added support for nested lists.
 - Added support for ordered lists.
 - Improved support for spans with attributes.
-- Improved support for lists.
 
 ## v8.0.0 - 2025-11-28
 

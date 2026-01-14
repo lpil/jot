@@ -53,7 +53,7 @@ pub type Container {
   )
   OrderedList(
     layout: ListLayout,
-    style: OrdinalPunctuation,
+    punctuation: OrdinalPunctuation,
     ordinal: OrdinalStyle,
     start: Int,
     items: List(List(Container)),
@@ -1911,8 +1911,8 @@ fn parse_list(
       let items = list.reverse(items)
       let container = case style {
         Bullet(bullet_style) -> BulletList(layout:, style: bullet_style, items:)
-        Ordered(ordered_style, ordinal) ->
-          OrderedList(layout:, style: ordered_style, ordinal:, start:, items:)
+        Ordered(punctuation, ordinal) ->
+          OrderedList(layout:, punctuation:, ordinal:, start:, items:)
       }
       #(container, in)
     }
@@ -2478,7 +2478,7 @@ fn container_to_html(
       |> close_tag("ul")
     }
 
-    OrderedList(layout:, style: _, ordinal:, start:, items:) -> {
+    OrderedList(layout:, punctuation: _, ordinal:, start:, items:) -> {
       let attrs = case start {
         1 -> dict.new()
         _ -> dict.from_list([#("start", int.to_string(start))])
