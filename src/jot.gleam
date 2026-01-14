@@ -51,7 +51,13 @@ pub type Container {
     style: BulletStyle,
     items: List(List(Container)),
   )
-  OrderedList(layout: ListLayout, start: Int, items: List(List(Container)))
+  OrderedList(
+    layout: ListLayout,
+    style: OrdinalPunctuation,
+    ordinal: OrdinalStyle,
+    start: Int,
+    items: List(List(Container)),
+  )
   BlockQuote(attributes: Dict(String, String), items: List(Container))
   Div(attributes: Dict(String, String), items: List(Container))
 }
@@ -60,6 +66,81 @@ pub type BulletStyle {
   BulletDash
   BulletStar
   BulletPlus
+}
+
+pub type OrdinalPunctuation {
+  FullStop
+  SingleParen
+  DoubleParen
+}
+
+pub type OrdinalStyle {
+  NumericOrdinal
+  LowerAlphaOrdinal
+  UpperAlphaOrdinal
+}
+
+fn letter_ordinal(c: String) -> Option(#(Int, OrdinalStyle)) {
+  case c {
+    "a" -> Some(#(1, LowerAlphaOrdinal))
+    "b" -> Some(#(2, LowerAlphaOrdinal))
+    "c" -> Some(#(3, LowerAlphaOrdinal))
+    "d" -> Some(#(4, LowerAlphaOrdinal))
+    "e" -> Some(#(5, LowerAlphaOrdinal))
+    "f" -> Some(#(6, LowerAlphaOrdinal))
+    "g" -> Some(#(7, LowerAlphaOrdinal))
+    "h" -> Some(#(8, LowerAlphaOrdinal))
+    "i" -> Some(#(9, LowerAlphaOrdinal))
+    "j" -> Some(#(10, LowerAlphaOrdinal))
+    "k" -> Some(#(11, LowerAlphaOrdinal))
+    "l" -> Some(#(12, LowerAlphaOrdinal))
+    "m" -> Some(#(13, LowerAlphaOrdinal))
+    "n" -> Some(#(14, LowerAlphaOrdinal))
+    "o" -> Some(#(15, LowerAlphaOrdinal))
+    "p" -> Some(#(16, LowerAlphaOrdinal))
+    "q" -> Some(#(17, LowerAlphaOrdinal))
+    "r" -> Some(#(18, LowerAlphaOrdinal))
+    "s" -> Some(#(19, LowerAlphaOrdinal))
+    "t" -> Some(#(20, LowerAlphaOrdinal))
+    "u" -> Some(#(21, LowerAlphaOrdinal))
+    "v" -> Some(#(22, LowerAlphaOrdinal))
+    "w" -> Some(#(23, LowerAlphaOrdinal))
+    "x" -> Some(#(24, LowerAlphaOrdinal))
+    "y" -> Some(#(25, LowerAlphaOrdinal))
+    "z" -> Some(#(26, LowerAlphaOrdinal))
+    "A" -> Some(#(1, UpperAlphaOrdinal))
+    "B" -> Some(#(2, UpperAlphaOrdinal))
+    "C" -> Some(#(3, UpperAlphaOrdinal))
+    "D" -> Some(#(4, UpperAlphaOrdinal))
+    "E" -> Some(#(5, UpperAlphaOrdinal))
+    "F" -> Some(#(6, UpperAlphaOrdinal))
+    "G" -> Some(#(7, UpperAlphaOrdinal))
+    "H" -> Some(#(8, UpperAlphaOrdinal))
+    "I" -> Some(#(9, UpperAlphaOrdinal))
+    "J" -> Some(#(10, UpperAlphaOrdinal))
+    "K" -> Some(#(11, UpperAlphaOrdinal))
+    "L" -> Some(#(12, UpperAlphaOrdinal))
+    "M" -> Some(#(13, UpperAlphaOrdinal))
+    "N" -> Some(#(14, UpperAlphaOrdinal))
+    "O" -> Some(#(15, UpperAlphaOrdinal))
+    "P" -> Some(#(16, UpperAlphaOrdinal))
+    "Q" -> Some(#(17, UpperAlphaOrdinal))
+    "R" -> Some(#(18, UpperAlphaOrdinal))
+    "S" -> Some(#(19, UpperAlphaOrdinal))
+    "T" -> Some(#(20, UpperAlphaOrdinal))
+    "U" -> Some(#(21, UpperAlphaOrdinal))
+    "V" -> Some(#(22, UpperAlphaOrdinal))
+    "W" -> Some(#(23, UpperAlphaOrdinal))
+    "X" -> Some(#(24, UpperAlphaOrdinal))
+    "Y" -> Some(#(25, UpperAlphaOrdinal))
+    "Z" -> Some(#(26, UpperAlphaOrdinal))
+    _ -> None
+  }
+}
+
+type ListStyle {
+  Bullet(BulletStyle)
+  Ordered(OrdinalPunctuation, OrdinalStyle)
 }
 
 pub type Inline {
@@ -384,13 +465,14 @@ fn parse_container(
     "-" as style <> in2 | "*" as style <> in2 | "+" as style <> in2 -> {
       case parse_thematic_break(1, in2), in2 {
         None, " " <> in2 | None, "\n" <> in2 -> {
-          let style = case style {
+          let bullet_style = case style {
             "-" -> BulletDash
             "*" -> BulletStar
-            _ -> BulletStar
+            _ -> BulletPlus
           }
+          let style = Bullet(bullet_style)
           let #(list, in) =
-            parse_bullet_list(in2, refs, attrs, style, Tight, [], splitters)
+            parse_list(in2, refs, attrs, style, 0, Tight, [], splitters)
           #(in, refs, Some(list), dict.new())
         }
         None, _ -> {
@@ -415,9 +497,26 @@ fn parse_container(
     | "8" <> _
     | "9" <> _ -> {
       case parse_ordered_list_start(in, 0) {
-        Some(#(start, in2)) -> {
+        Some(#(style, ordinal, start, in)) -> {
+          let style = Ordered(style, ordinal)
           let #(list, in) =
-            parse_ordered_list(in2, refs, attrs, start, Tight, [], splitters)
+            parse_list(in, refs, attrs, style, start, Tight, [], splitters)
+          #(in, refs, Some(list), dict.new())
+        }
+        None -> {
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
+          #(in, refs, Some(paragraph), dict.new())
+        }
+      }
+    }
+
+    "(" <> in -> {
+      case parse_ordered_list_start_parens(in) {
+        Some(#(style, ordinal, start, in)) -> {
+          let style = Ordered(style, ordinal)
+          let #(list, in) =
+            parse_list(in, refs, attrs, style, start, Tight, [], splitters)
           #(in, refs, Some(list), dict.new())
         }
         None -> {
@@ -451,15 +550,12 @@ fn parse_container(
           #(in, refs, Some(paragraph), dict.new())
         }
         Some(#(id, url, in)) -> {
-          let refs =
-            Refs(
-              ..refs,
-              urls: dict.insert(refs.urls, id, url),
-              url_attributes: case dict.is_empty(attrs) {
-                True -> refs.url_attributes
-                False -> dict.insert(refs.url_attributes, id, attrs)
-              },
-            )
+          let url_attributes = case dict.is_empty(attrs) {
+            True -> refs.url_attributes
+            False -> dict.insert(refs.url_attributes, id, attrs)
+          }
+          let urls = dict.insert(refs.urls, id, url)
+          let refs = Refs(..refs, urls:, url_attributes:)
           #(in, refs, None, dict.new())
         }
       }
@@ -472,16 +568,100 @@ fn parse_container(
             parse_paragraph(in, attrs, splitters, div_close_size)
           #(in, refs, Some(paragraph), dict.new())
         }
-        Some(#(in, attrs, content)) -> #(
-          in,
-          refs,
-          Some(Div(attrs, content)),
-          dict.new(),
-        )
+        Some(#(in, attrs, content)) -> {
+          let div = Some(Div(attrs, content))
+          #(in, refs, div, dict.new())
+        }
       }
     }
 
+    "a" as i <> rest
+    | "b" as i <> rest
+    | "c" as i <> rest
+    | "d" as i <> rest
+    | "e" as i <> rest
+    | "f" as i <> rest
+    | "g" as i <> rest
+    | "h" as i <> rest
+    | "i" as i <> rest
+    | "j" as i <> rest
+    | "k" as i <> rest
+    | "l" as i <> rest
+    | "m" as i <> rest
+    | "n" as i <> rest
+    | "o" as i <> rest
+    | "p" as i <> rest
+    | "q" as i <> rest
+    | "r" as i <> rest
+    | "s" as i <> rest
+    | "t" as i <> rest
+    | "u" as i <> rest
+    | "v" as i <> rest
+    | "w" as i <> rest
+    | "x" as i <> rest
+    | "y" as i <> rest
+    | "z" as i <> rest
+    | "A" as i <> rest
+    | "B" as i <> rest
+    | "C" as i <> rest
+    | "D" as i <> rest
+    | "E" as i <> rest
+    | "F" as i <> rest
+    | "G" as i <> rest
+    | "H" as i <> rest
+    | "I" as i <> rest
+    | "J" as i <> rest
+    | "K" as i <> rest
+    | "L" as i <> rest
+    | "M" as i <> rest
+    | "N" as i <> rest
+    | "O" as i <> rest
+    | "P" as i <> rest
+    | "Q" as i <> rest
+    | "R" as i <> rest
+    | "S" as i <> rest
+    | "T" as i <> rest
+    | "U" as i <> rest
+    | "V" as i <> rest
+    | "W" as i <> rest
+    | "X" as i <> rest
+    | "Y" as i <> rest
+    | "Z" as i <> rest ->
+      parse_alpha(in, rest, refs, attrs, splitters, div_close_size, i)
+
     _ -> {
+      let #(paragraph, in) =
+        parse_paragraph(in, attrs, splitters, div_close_size)
+      #(in, refs, Some(paragraph), dict.new())
+    }
+  }
+}
+
+fn parse_alpha(
+  in: String,
+  rest: String,
+  refs: Refs,
+  attrs: Dict(String, String),
+  splitters: Splitters,
+  div_close_size: Option(Int),
+  letter: String,
+) -> #(String, Refs, Option(Container), Dict(String, String)) {
+  case letter_ordinal(letter) {
+    Some(#(num, ordinal)) ->
+      case parse_ordered_list_alpha(rest, num, ordinal) {
+        Some(#(style, ordinal, start, in2)) -> {
+          let style = Ordered(style, ordinal)
+          let #(list, in) =
+            parse_list(in2, refs, attrs, style, start, Tight, [], splitters)
+          #(in, refs, Some(list), dict.new())
+        }
+        None -> {
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
+          #(in, refs, Some(paragraph), dict.new())
+        }
+      }
+    None -> {
       let #(paragraph, in) =
         parse_paragraph(in, attrs, splitters, div_close_size)
       #(in, refs, Some(paragraph), dict.new())
@@ -1711,11 +1891,12 @@ fn parse_paragraph(
   #(Paragraph(attrs, inline), inline_in_remaining <> in)
 }
 
-fn parse_bullet_list(
+fn parse_list(
   in: String,
   refs: Refs,
   attrs: Dict(String, String),
-  style: BulletStyle,
+  style: ListStyle,
+  start: Int,
   layout: ListLayout,
   items: List(List(Container)),
   splitters: Splitters,
@@ -1723,11 +1904,16 @@ fn parse_bullet_list(
   let #(inline_in, in, layout) = take_list_item_chars(in, "", style, layout)
   let item = parse_list_item(inline_in, refs, attrs, splitters, [])
   let items = [item, ..items]
-  case parse_bullet_marker(in) {
-    Some(#(next, in)) if next == style ->
-      parse_bullet_list(in, refs, attrs, style, layout, items, splitters)
+  case parse_list_marker(in) {
+    Some(#(next_style, in)) if next_style == style ->
+      parse_list(in, refs, attrs, style, start, layout, items, splitters)
     _ -> {
-      let container = BulletList(layout:, style:, items: list.reverse(items))
+      let items = list.reverse(items)
+      let container = case style {
+        Bullet(bullet_style) -> BulletList(layout:, style: bullet_style, items:)
+        Ordered(ordered_style, ordinal) ->
+          OrderedList(layout:, style: ordered_style, ordinal:, start:, items:)
+      }
       #(container, in)
     }
   }
@@ -1755,7 +1941,7 @@ fn parse_list_item(
 fn take_list_item_chars(
   in: String,
   acc: String,
-  style: BulletStyle,
+  style: ListStyle,
   layout: ListLayout,
 ) -> #(String, String, ListLayout) {
   let #(line, in) = case string.split_once(in, "\n") {
@@ -1772,9 +1958,9 @@ fn take_list_item_chars(
     // content for the current list item.
     "\n " <> rest -> {
       let #(rest, indent) = count_drop_spaces(rest, 1)
-      let layout = case starts_with_list_marker(rest) {
-        True -> layout
-        False -> Loose
+      let layout = case parse_list_marker(rest) {
+        Some(_) -> layout
+        None -> Loose
       }
       let acc = acc <> "\n\n"
       take_list_item_chars_indented(rest, acc, style, layout, indent)
@@ -1783,15 +1969,15 @@ fn take_list_item_chars(
     // A blank line followed by un-indented content, so the end of this
     // current list item.
     "\n" <> rest -> {
-      let layout = case parse_bullet_marker(rest) {
-        Some(#(next, _)) if next == style -> Loose
+      let layout = case parse_list_marker(rest) {
+        Some(#(next_style, _)) if next_style == style -> Loose
         _ -> layout
       }
       #(acc, rest, layout)
     }
 
     _ -> {
-      case parse_bullet_marker(in) {
+      case parse_list_marker(in) {
         Some(_) -> #(acc, in, layout)
         None -> take_list_item_chars(in, acc <> "\n", style, layout)
       }
@@ -1799,18 +1985,97 @@ fn take_list_item_chars(
   }
 }
 
-fn starts_with_list_marker(in: String) -> Bool {
-  case parse_bullet_marker(in) {
-    Some(_) -> True
-    None -> False
+fn parse_list_marker(in: String) -> Option(#(ListStyle, String)) {
+  case in {
+    "- " <> in | "-\n" <> in -> Some(#(Bullet(BulletDash), in))
+    "* " <> in | "*\n" <> in -> Some(#(Bullet(BulletStar), in))
+    "+ " <> in | "+\n" <> in -> Some(#(Bullet(BulletPlus), in))
+
+    "(" <> in ->
+      case parse_ordered_list_start_parens(in) {
+        Some(#(style, ordinal, _, in)) -> Some(#(Ordered(style, ordinal), in))
+        None -> None
+      }
+
+    "0" <> _
+    | "1" <> _
+    | "2" <> _
+    | "3" <> _
+    | "4" <> _
+    | "5" <> _
+    | "6" <> _
+    | "7" <> _
+    | "8" <> _
+    | "9" <> _ ->
+      case parse_ordered_list_start(in, 0) {
+        Some(#(style, ordinal, _, in)) -> Some(#(Ordered(style, ordinal), in))
+        None -> None
+      }
+
+    "a" <> in
+    | "b" <> in
+    | "c" <> in
+    | "d" <> in
+    | "e" <> in
+    | "f" <> in
+    | "g" <> in
+    | "h" <> in
+    | "i" <> in
+    | "j" <> in
+    | "k" <> in
+    | "l" <> in
+    | "m" <> in
+    | "n" <> in
+    | "o" <> in
+    | "p" <> in
+    | "q" <> in
+    | "r" <> in
+    | "s" <> in
+    | "t" <> in
+    | "u" <> in
+    | "v" <> in
+    | "w" <> in
+    | "x" <> in
+    | "y" <> in -> parse_alpha_ordinal(in, LowerAlphaOrdinal)
+
+    "z" <> in
+    | "A" <> in
+    | "B" <> in
+    | "C" <> in
+    | "D" <> in
+    | "E" <> in
+    | "F" <> in
+    | "G" <> in
+    | "H" <> in
+    | "I" <> in
+    | "J" <> in
+    | "K" <> in
+    | "L" <> in
+    | "M" <> in
+    | "N" <> in
+    | "O" <> in
+    | "P" <> in
+    | "Q" <> in
+    | "R" <> in
+    | "S" <> in
+    | "T" <> in
+    | "U" <> in
+    | "V" <> in
+    | "W" <> in
+    | "X" <> in
+    | "Y" <> in
+    | "Z" <> in -> parse_alpha_ordinal(in, UpperAlphaOrdinal)
+    _ -> None
   }
 }
 
-fn parse_bullet_marker(in: String) -> Option(#(BulletStyle, String)) {
+fn parse_alpha_ordinal(
+  in: String,
+  ordinal: OrdinalStyle,
+) -> Option(#(ListStyle, String)) {
   case in {
-    "- " <> rest | "-\n" <> rest -> Some(#(BulletDash, rest))
-    "* " <> rest | "*\n" <> rest -> Some(#(BulletStar, rest))
-    "+ " <> rest | "+\n" <> rest -> Some(#(BulletPlus, rest))
+    ". " <> rest | ".\n" <> rest -> Some(#(Ordered(FullStop, ordinal), rest))
+    ") " <> rest | ")\n" <> rest -> Some(#(Ordered(SingleParen, ordinal), rest))
     _ -> None
   }
 }
@@ -1818,7 +2083,7 @@ fn parse_bullet_marker(in: String) -> Option(#(BulletStyle, String)) {
 fn take_list_item_chars_indented(
   in: String,
   acc: String,
-  style: BulletStyle,
+  style: ListStyle,
   layout: ListLayout,
   indent: Int,
 ) -> #(String, String, ListLayout) {
@@ -1836,9 +2101,9 @@ fn take_list_item_chars_indented(
       take_list_item_chars_indented(in, acc <> "\n", style, layout, indent)
 
     "\n " <> rest -> {
-      let layout = case starts_with_list_marker(drop_spaces(rest)) {
-        True -> layout
-        False -> Loose
+      let layout = case parse_list_marker(drop_spaces(rest)) {
+        Some(_) -> layout
+        None -> Loose
       }
       let acc = acc <> "\n\n"
       let in = string.drop_start(in, 1)
@@ -1850,8 +2115,8 @@ fn take_list_item_chars_indented(
     "\n" <> rest2 -> #(acc, rest2, layout)
 
     _ -> {
-      case parse_bullet_marker(in) {
-        Some(#(next, _)) if next == style -> #(acc, in, layout)
+      case parse_list_marker(in) {
+        Some(#(next_style, _)) if next_style == style -> #(acc, in, layout)
         _ ->
           take_list_item_chars_indented(in, acc <> "\n", style, layout, indent)
       }
@@ -1867,7 +2132,10 @@ fn drop_n_spaces(in: String, count: Int) -> String {
   }
 }
 
-fn parse_ordered_list_start(in: String, num: Int) -> Option(#(Int, String)) {
+fn parse_ordered_list_start(
+  in: String,
+  num: Int,
+) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
   case in {
     "0" <> rest -> parse_ordered_list_start(rest, num * 10 + 0)
     "1" <> rest -> parse_ordered_list_start(rest, num * 10 + 1)
@@ -1879,142 +2147,125 @@ fn parse_ordered_list_start(in: String, num: Int) -> Option(#(Int, String)) {
     "7" <> rest -> parse_ordered_list_start(rest, num * 10 + 7)
     "8" <> rest -> parse_ordered_list_start(rest, num * 10 + 8)
     "9" <> rest -> parse_ordered_list_start(rest, num * 10 + 9)
-    ". " <> rest | ".\n" <> rest -> Some(#(num, rest))
+    ". " <> rest | ".\n" <> rest -> Some(#(FullStop, NumericOrdinal, num, rest))
+    ") " <> rest | ")\n" <> rest ->
+      Some(#(SingleParen, NumericOrdinal, num, rest))
     _ -> None
   }
 }
 
-fn parse_ordered_list(
+fn parse_ordered_list_start_parens(
   in: String,
-  refs: Refs,
-  attrs: Dict(String, String),
-  start: Int,
-  layout: ListLayout,
-  items: List(List(Container)),
-  splitters: Splitters,
-) -> #(Container, String) {
-  let #(inline_in, in, layout) = take_ordered_list_item_chars(in, "", layout)
-  let item = parse_list_item(inline_in, refs, attrs, splitters, [])
-  let items = [item, ..items]
-  case drop_ordered_list_marker(in) {
-    Some(in) ->
-      parse_ordered_list(in, refs, attrs, start, layout, items, splitters)
-    None -> #(OrderedList(layout:, start:, items: list.reverse(items)), in)
-  }
-}
-
-fn take_ordered_list_item_chars(
-  in: String,
-  acc: String,
-  layout: ListLayout,
-) -> #(String, String, ListLayout) {
-  let #(line, in) = case string.split_once(in, "\n") {
-    Ok(split) -> split
-    Error(_) -> #(in, "")
-  }
-  let acc = acc <> line
-
+) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
   case in {
-    "" -> #(acc, "", layout)
-    " " <> _ -> take_ordered_list_item_chars(in, acc <> "\n", layout)
+    "0" <> in -> parse_number_ordinal(in, 0)
+    "1" <> in -> parse_number_ordinal(in, 1)
+    "2" <> in -> parse_number_ordinal(in, 2)
+    "3" <> in -> parse_number_ordinal(in, 3)
+    "4" <> in -> parse_number_ordinal(in, 4)
+    "5" <> in -> parse_number_ordinal(in, 5)
+    "6" <> in -> parse_number_ordinal(in, 6)
+    "7" <> in -> parse_number_ordinal(in, 7)
+    "8" <> in -> parse_number_ordinal(in, 8)
+    "9" <> in -> parse_number_ordinal(in, 9)
 
-    // A blank line followed by indented content, meaning this is
-    // content for the current list item.
-    "\n " <> rest -> {
-      let #(rest, indent) = count_drop_spaces(rest, 1)
-      let layout = case starts_with_ordered_list_marker(rest) {
-        True -> layout
-        False -> Loose
-      }
-      let acc = acc <> "\n\n"
-      take_ordered_list_item_chars_indented(rest, acc, layout, indent)
-    }
-
-    // A blank line followed by un-indented content, so the end of this
-    // current list item.
-    "\n" <> rest -> {
-      let layout = case starts_with_ordered_list_marker(rest) {
-        True -> Loose
-        False -> layout
-      }
-      #(acc, rest, layout)
-    }
-
-    // Next item marker or other content
-    _ -> {
-      case starts_with_ordered_list_marker(in) {
-        True -> #(acc, in, layout)
-        False -> take_ordered_list_item_chars(in, acc <> "\n", layout)
-      }
-    }
-  }
-}
-
-fn take_ordered_list_item_chars_indented(
-  in: String,
-  acc: String,
-  layout: ListLayout,
-  indent: Int,
-) -> #(String, String, ListLayout) {
-  let in = drop_n_spaces(in, indent)
-  let #(line, in) = case string.split_once(in, "\n") {
-    Ok(split) -> split
-    Error(_) -> #(in, "")
-  }
-  let acc = acc <> line
-
-  case in {
-    "" -> #(acc, "", layout)
-
-    " " <> _ ->
-      take_ordered_list_item_chars_indented(in, acc <> "\n", layout, indent)
-
-    // New line with indented content, it's content for the current list item.
-    "\n " <> rest -> {
-      let layout = case starts_with_ordered_list_marker(drop_spaces(rest)) {
-        True -> layout
-        False -> Loose
-      }
-      let in = string.drop_start(in, 1)
-      take_ordered_list_item_chars_indented(in, acc <> "\n\n", layout, indent)
-    }
-
-    // New line with other content, the current list item has ended.
-    "\n" <> rest2 -> #(acc, rest2, layout)
-
-    _ -> {
-      case starts_with_ordered_list_marker(in) {
-        True -> #(acc, in, layout)
-        False -> {
-          let acc = acc <> "\n"
-          take_ordered_list_item_chars_indented(in, acc, layout, indent)
-        }
-      }
-    }
-  }
-}
-
-fn drop_ordered_list_marker(in: String) -> Option(String) {
-  case in {
-    "0" <> rest
-    | "1" <> rest
-    | "2" <> rest
-    | "3" <> rest
-    | "4" <> rest
-    | "5" <> rest
-    | "6" <> rest
-    | "7" <> rest
-    | "8" <> rest
-    | "9" <> rest -> drop_ordered_list_marker(rest)
-    ". " <> rest | ".\n" <> rest -> Some(rest)
+    // Alpha: (a), (A), etc.
+    "a" <> in -> parse_alpha_ordinal_parens(in, 1, LowerAlphaOrdinal)
+    "b" <> in -> parse_alpha_ordinal_parens(in, 2, LowerAlphaOrdinal)
+    "c" <> in -> parse_alpha_ordinal_parens(in, 3, LowerAlphaOrdinal)
+    "d" <> in -> parse_alpha_ordinal_parens(in, 4, LowerAlphaOrdinal)
+    "e" <> in -> parse_alpha_ordinal_parens(in, 5, LowerAlphaOrdinal)
+    "f" <> in -> parse_alpha_ordinal_parens(in, 6, LowerAlphaOrdinal)
+    "g" <> in -> parse_alpha_ordinal_parens(in, 7, LowerAlphaOrdinal)
+    "h" <> in -> parse_alpha_ordinal_parens(in, 8, LowerAlphaOrdinal)
+    "i" <> in -> parse_alpha_ordinal_parens(in, 9, LowerAlphaOrdinal)
+    "j" <> in -> parse_alpha_ordinal_parens(in, 10, LowerAlphaOrdinal)
+    "k" <> in -> parse_alpha_ordinal_parens(in, 11, LowerAlphaOrdinal)
+    "l" <> in -> parse_alpha_ordinal_parens(in, 12, LowerAlphaOrdinal)
+    "m" <> in -> parse_alpha_ordinal_parens(in, 13, LowerAlphaOrdinal)
+    "n" <> in -> parse_alpha_ordinal_parens(in, 14, LowerAlphaOrdinal)
+    "o" <> in -> parse_alpha_ordinal_parens(in, 15, LowerAlphaOrdinal)
+    "p" <> in -> parse_alpha_ordinal_parens(in, 16, LowerAlphaOrdinal)
+    "q" <> in -> parse_alpha_ordinal_parens(in, 17, LowerAlphaOrdinal)
+    "r" <> in -> parse_alpha_ordinal_parens(in, 18, LowerAlphaOrdinal)
+    "s" <> in -> parse_alpha_ordinal_parens(in, 19, LowerAlphaOrdinal)
+    "t" <> in -> parse_alpha_ordinal_parens(in, 20, LowerAlphaOrdinal)
+    "u" <> in -> parse_alpha_ordinal_parens(in, 21, LowerAlphaOrdinal)
+    "v" <> in -> parse_alpha_ordinal_parens(in, 22, LowerAlphaOrdinal)
+    "w" <> in -> parse_alpha_ordinal_parens(in, 23, LowerAlphaOrdinal)
+    "x" <> in -> parse_alpha_ordinal_parens(in, 24, LowerAlphaOrdinal)
+    "y" <> in -> parse_alpha_ordinal_parens(in, 25, LowerAlphaOrdinal)
+    "z" <> in -> parse_alpha_ordinal_parens(in, 26, LowerAlphaOrdinal)
+    "A" <> in -> parse_alpha_ordinal_parens(in, 1, UpperAlphaOrdinal)
+    "B" <> in -> parse_alpha_ordinal_parens(in, 2, UpperAlphaOrdinal)
+    "C" <> in -> parse_alpha_ordinal_parens(in, 3, UpperAlphaOrdinal)
+    "D" <> in -> parse_alpha_ordinal_parens(in, 4, UpperAlphaOrdinal)
+    "E" <> in -> parse_alpha_ordinal_parens(in, 5, UpperAlphaOrdinal)
+    "F" <> in -> parse_alpha_ordinal_parens(in, 6, UpperAlphaOrdinal)
+    "G" <> in -> parse_alpha_ordinal_parens(in, 7, UpperAlphaOrdinal)
+    "H" <> in -> parse_alpha_ordinal_parens(in, 8, UpperAlphaOrdinal)
+    "I" <> in -> parse_alpha_ordinal_parens(in, 9, UpperAlphaOrdinal)
+    "J" <> in -> parse_alpha_ordinal_parens(in, 10, UpperAlphaOrdinal)
+    "K" <> in -> parse_alpha_ordinal_parens(in, 11, UpperAlphaOrdinal)
+    "L" <> in -> parse_alpha_ordinal_parens(in, 12, UpperAlphaOrdinal)
+    "M" <> in -> parse_alpha_ordinal_parens(in, 13, UpperAlphaOrdinal)
+    "N" <> in -> parse_alpha_ordinal_parens(in, 14, UpperAlphaOrdinal)
+    "O" <> in -> parse_alpha_ordinal_parens(in, 15, UpperAlphaOrdinal)
+    "P" <> in -> parse_alpha_ordinal_parens(in, 16, UpperAlphaOrdinal)
+    "Q" <> in -> parse_alpha_ordinal_parens(in, 17, UpperAlphaOrdinal)
+    "R" <> in -> parse_alpha_ordinal_parens(in, 18, UpperAlphaOrdinal)
+    "S" <> in -> parse_alpha_ordinal_parens(in, 19, UpperAlphaOrdinal)
+    "T" <> in -> parse_alpha_ordinal_parens(in, 20, UpperAlphaOrdinal)
+    "U" <> in -> parse_alpha_ordinal_parens(in, 21, UpperAlphaOrdinal)
+    "V" <> in -> parse_alpha_ordinal_parens(in, 22, UpperAlphaOrdinal)
+    "W" <> in -> parse_alpha_ordinal_parens(in, 23, UpperAlphaOrdinal)
+    "X" <> in -> parse_alpha_ordinal_parens(in, 24, UpperAlphaOrdinal)
+    "Y" <> in -> parse_alpha_ordinal_parens(in, 25, UpperAlphaOrdinal)
+    "Z" <> in -> parse_alpha_ordinal_parens(in, 26, UpperAlphaOrdinal)
     _ -> None
   }
 }
 
-fn starts_with_ordered_list_marker(in: String) -> Bool {
-  case drop_ordered_list_marker(in) {
-    Some(_) -> True
-    None -> False
+fn parse_number_ordinal(
+  in: String,
+  num: Int,
+) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
+  case in {
+    "0" <> in -> parse_number_ordinal(in, num * 10 + 0)
+    "1" <> in -> parse_number_ordinal(in, num * 10 + 1)
+    "2" <> in -> parse_number_ordinal(in, num * 10 + 2)
+    "3" <> in -> parse_number_ordinal(in, num * 10 + 3)
+    "4" <> in -> parse_number_ordinal(in, num * 10 + 4)
+    "5" <> in -> parse_number_ordinal(in, num * 10 + 5)
+    "6" <> in -> parse_number_ordinal(in, num * 10 + 6)
+    "7" <> in -> parse_number_ordinal(in, num * 10 + 7)
+    "8" <> in -> parse_number_ordinal(in, num * 10 + 8)
+    "9" <> in -> parse_number_ordinal(in, num * 10 + 9)
+    ") " <> in | ")\n" <> in -> Some(#(DoubleParen, NumericOrdinal, num, in))
+    _ -> None
+  }
+}
+
+fn parse_alpha_ordinal_parens(
+  in: String,
+  num: Int,
+  ordinal: OrdinalStyle,
+) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
+  case in {
+    ") " <> in | ")\n" <> in -> Some(#(DoubleParen, ordinal, num, in))
+    _ -> None
+  }
+}
+
+fn parse_ordered_list_alpha(
+  in: String,
+  num: Int,
+  ordinal: OrdinalStyle,
+) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
+  case in {
+    ". " <> in | ".\n" <> in -> Some(#(FullStop, ordinal, num, in))
+    ") " <> in | ")\n" <> in -> Some(#(SingleParen, ordinal, num, in))
+    _ -> None
   }
 }
 
@@ -2022,7 +2273,7 @@ fn take_paragraph_chars(
   in: String,
   div_close_size: Option(Int),
 ) -> #(String, String) {
-  let #(paragraph, rest) = case string.split_once(in, "\n\n") {
+  let #(paragraph, in) = case string.split_once(in, "\n\n") {
     Ok(#(content, in)) -> #(content, in)
     Error(_) ->
       case string.ends_with(in, "\n") {
@@ -2033,16 +2284,16 @@ fn take_paragraph_chars(
 
   case div_close_size {
     Some(size) -> {
-      let #(split_paragraph, paragraph_rest) =
+      let #(split_paragraph, paragraph_in) =
         search_paragraph_for_div_end(paragraph, [], size)
 
-      case split_paragraph, paragraph_rest {
-        "", "" -> #(paragraph, rest)
-        _, "" -> #(split_paragraph, rest)
-        _, _ -> #(split_paragraph, paragraph_rest <> "\n\n" <> rest)
+      case split_paragraph, paragraph_in {
+        "", "" -> #(paragraph, in)
+        _, "" -> #(split_paragraph, in)
+        _, _ -> #(split_paragraph, paragraph_in <> "\n\n" <> in)
       }
     }
-    None -> #(paragraph, rest)
+    None -> #(paragraph, in)
   }
 }
 
@@ -2227,10 +2478,15 @@ fn container_to_html(
       |> close_tag("ul")
     }
 
-    OrderedList(layout:, start:, items:) -> {
+    OrderedList(layout:, style: _, ordinal:, start:, items:) -> {
       let attrs = case start {
         1 -> dict.new()
         _ -> dict.from_list([#("start", int.to_string(start))])
+      }
+      let attrs = case ordinal {
+        NumericOrdinal -> attrs
+        LowerAlphaOrdinal -> dict.insert(attrs, "type", "a")
+        UpperAlphaOrdinal -> dict.insert(attrs, "type", "A")
       }
       html
       |> open_tag("ol", attrs)

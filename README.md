@@ -53,7 +53,7 @@ This project is a work in progress. So far it supports:
 - [x] Manual line breaks
 - [x] Maths (inline and display)
 - [x] Non-breaking spaces
-- [x] Ordered lists with the `1. 2. 3.` syntax
+- [x] Ordered lists with the `1.`, `1)`, and `(1)` syntaxes
 - [x] Paragraphs
 - [x] Raw blocks
 - [x] Smart replacing of `...` with ellipsis
