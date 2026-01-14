@@ -80,64 +80,6 @@ pub type OrdinalStyle {
   UpperAlphaOrdinal
 }
 
-fn letter_ordinal(c: String) -> Option(#(Int, OrdinalStyle)) {
-  case c {
-    "a" -> Some(#(1, LowerAlphaOrdinal))
-    "b" -> Some(#(2, LowerAlphaOrdinal))
-    "c" -> Some(#(3, LowerAlphaOrdinal))
-    "d" -> Some(#(4, LowerAlphaOrdinal))
-    "e" -> Some(#(5, LowerAlphaOrdinal))
-    "f" -> Some(#(6, LowerAlphaOrdinal))
-    "g" -> Some(#(7, LowerAlphaOrdinal))
-    "h" -> Some(#(8, LowerAlphaOrdinal))
-    "i" -> Some(#(9, LowerAlphaOrdinal))
-    "j" -> Some(#(10, LowerAlphaOrdinal))
-    "k" -> Some(#(11, LowerAlphaOrdinal))
-    "l" -> Some(#(12, LowerAlphaOrdinal))
-    "m" -> Some(#(13, LowerAlphaOrdinal))
-    "n" -> Some(#(14, LowerAlphaOrdinal))
-    "o" -> Some(#(15, LowerAlphaOrdinal))
-    "p" -> Some(#(16, LowerAlphaOrdinal))
-    "q" -> Some(#(17, LowerAlphaOrdinal))
-    "r" -> Some(#(18, LowerAlphaOrdinal))
-    "s" -> Some(#(19, LowerAlphaOrdinal))
-    "t" -> Some(#(20, LowerAlphaOrdinal))
-    "u" -> Some(#(21, LowerAlphaOrdinal))
-    "v" -> Some(#(22, LowerAlphaOrdinal))
-    "w" -> Some(#(23, LowerAlphaOrdinal))
-    "x" -> Some(#(24, LowerAlphaOrdinal))
-    "y" -> Some(#(25, LowerAlphaOrdinal))
-    "z" -> Some(#(26, LowerAlphaOrdinal))
-    "A" -> Some(#(1, UpperAlphaOrdinal))
-    "B" -> Some(#(2, UpperAlphaOrdinal))
-    "C" -> Some(#(3, UpperAlphaOrdinal))
-    "D" -> Some(#(4, UpperAlphaOrdinal))
-    "E" -> Some(#(5, UpperAlphaOrdinal))
-    "F" -> Some(#(6, UpperAlphaOrdinal))
-    "G" -> Some(#(7, UpperAlphaOrdinal))
-    "H" -> Some(#(8, UpperAlphaOrdinal))
-    "I" -> Some(#(9, UpperAlphaOrdinal))
-    "J" -> Some(#(10, UpperAlphaOrdinal))
-    "K" -> Some(#(11, UpperAlphaOrdinal))
-    "L" -> Some(#(12, UpperAlphaOrdinal))
-    "M" -> Some(#(13, UpperAlphaOrdinal))
-    "N" -> Some(#(14, UpperAlphaOrdinal))
-    "O" -> Some(#(15, UpperAlphaOrdinal))
-    "P" -> Some(#(16, UpperAlphaOrdinal))
-    "Q" -> Some(#(17, UpperAlphaOrdinal))
-    "R" -> Some(#(18, UpperAlphaOrdinal))
-    "S" -> Some(#(19, UpperAlphaOrdinal))
-    "T" -> Some(#(20, UpperAlphaOrdinal))
-    "U" -> Some(#(21, UpperAlphaOrdinal))
-    "V" -> Some(#(22, UpperAlphaOrdinal))
-    "W" -> Some(#(23, UpperAlphaOrdinal))
-    "X" -> Some(#(24, UpperAlphaOrdinal))
-    "Y" -> Some(#(25, UpperAlphaOrdinal))
-    "Z" -> Some(#(26, UpperAlphaOrdinal))
-    _ -> None
-  }
-}
-
 type ListStyle {
   Bullet(BulletStyle)
   Ordered(start: Int, punctuation: OrdinalPunctuation, style: OrdinalStyle)
@@ -486,47 +428,6 @@ fn parse_container(
       }
     }
 
-    "0" <> _
-    | "1" <> _
-    | "2" <> _
-    | "3" <> _
-    | "4" <> _
-    | "5" <> _
-    | "6" <> _
-    | "7" <> _
-    | "8" <> _
-    | "9" <> _ -> {
-      case parse_number_list(in, 0, False) {
-        Some(#(punctuation, style, start, in)) -> {
-          let style = Ordered(start:, punctuation:, style:)
-          let #(list, in) =
-            parse_list(in, refs, attrs, style, Tight, [], splitters)
-          #(in, refs, Some(list), dict.new())
-        }
-        None -> {
-          let #(paragraph, in) =
-            parse_paragraph(in, attrs, splitters, div_close_size)
-          #(in, refs, Some(paragraph), dict.new())
-        }
-      }
-    }
-
-    "(" <> in -> {
-      case parse_ordered_list_start_parens(in) {
-        Some(#(punctuation, style, start, in)) -> {
-          let style = Ordered(start:, style:, punctuation:)
-          let #(list, in) =
-            parse_list(in, refs, attrs, style, Tight, [], splitters)
-          #(in, refs, Some(list), dict.new())
-        }
-        None -> {
-          let #(paragraph, in) =
-            parse_paragraph(in, attrs, splitters, div_close_size)
-          #(in, refs, Some(paragraph), dict.new())
-        }
-      }
-    }
-
     "[^" <> in2 -> {
       case parse_footnote_def(in2, refs, splitters, "^") {
         None -> {
@@ -575,97 +476,132 @@ fn parse_container(
       }
     }
 
-    "a" as i <> rest
-    | "b" as i <> rest
-    | "c" as i <> rest
-    | "d" as i <> rest
-    | "e" as i <> rest
-    | "f" as i <> rest
-    | "g" as i <> rest
-    | "h" as i <> rest
-    | "i" as i <> rest
-    | "j" as i <> rest
-    | "k" as i <> rest
-    | "l" as i <> rest
-    | "m" as i <> rest
-    | "n" as i <> rest
-    | "o" as i <> rest
-    | "p" as i <> rest
-    | "q" as i <> rest
-    | "r" as i <> rest
-    | "s" as i <> rest
-    | "t" as i <> rest
-    | "u" as i <> rest
-    | "v" as i <> rest
-    | "w" as i <> rest
-    | "x" as i <> rest
-    | "y" as i <> rest
-    | "z" as i <> rest
-    | "A" as i <> rest
-    | "B" as i <> rest
-    | "C" as i <> rest
-    | "D" as i <> rest
-    | "E" as i <> rest
-    | "F" as i <> rest
-    | "G" as i <> rest
-    | "H" as i <> rest
-    | "I" as i <> rest
-    | "J" as i <> rest
-    | "K" as i <> rest
-    | "L" as i <> rest
-    | "M" as i <> rest
-    | "N" as i <> rest
-    | "O" as i <> rest
-    | "P" as i <> rest
-    | "Q" as i <> rest
-    | "R" as i <> rest
-    | "S" as i <> rest
-    | "T" as i <> rest
-    | "U" as i <> rest
-    | "V" as i <> rest
-    | "W" as i <> rest
-    | "X" as i <> rest
-    | "Y" as i <> rest
-    | "Z" as i <> rest ->
-      parse_alpha(in, rest, refs, attrs, splitters, div_close_size, i)
-
-    _ -> {
-      let #(paragraph, in) =
-        parse_paragraph(in, attrs, splitters, div_close_size)
-      #(in, refs, Some(paragraph), dict.new())
-    }
-  }
-}
-
-fn parse_alpha(
-  in: String,
-  rest: String,
-  refs: Refs,
-  attrs: Dict(String, String),
-  splitters: Splitters,
-  div_close_size: Option(Int),
-  letter: String,
-) -> #(String, Refs, Option(Container), Dict(String, String)) {
-  case letter_ordinal(letter) {
-    Some(#(num, ordinal)) ->
-      case parse_ordered_list_alpha(rest, num, ordinal) {
-        Some(#(punctuation, style, start, in2)) -> {
-          let style = Ordered(start:, style:, punctuation:)
-          let #(list, in) =
-            parse_list(in2, refs, attrs, style, Tight, [], splitters)
-          #(in, refs, Some(list), dict.new())
-        }
+    "(" <> rest -> {
+      case parse_maybe_list(rest, refs, attrs, splitters, True) {
+        Some(#(in, refs, list)) -> #(in, refs, Some(list), dict.new())
         None -> {
           let #(paragraph, in) =
             parse_paragraph(in, attrs, splitters, div_close_size)
           #(in, refs, Some(paragraph), dict.new())
         }
       }
-    None -> {
-      let #(paragraph, in) =
-        parse_paragraph(in, attrs, splitters, div_close_size)
-      #(in, refs, Some(paragraph), dict.new())
     }
+
+    _ -> {
+      case parse_maybe_list(in, refs, attrs, splitters, False) {
+        Some(#(in, refs, list)) -> #(in, refs, Some(list), dict.new())
+        None -> {
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
+          #(in, refs, Some(paragraph), dict.new())
+        }
+      }
+    }
+  }
+}
+
+fn parse_maybe_list(
+  in: String,
+  refs: Refs,
+  attrs: Dict(String, String),
+  splitters: Splitters,
+  paren: Bool,
+) -> Option(#(String, Refs, Container)) {
+  case in {
+    "0" <> _
+    | "1" <> _
+    | "2" <> _
+    | "3" <> _
+    | "4" <> _
+    | "5" <> _
+    | "6" <> _
+    | "7" <> _
+    | "8" <> _
+    | "9" <> _ -> {
+      case parse_number_list(in, 0, paren) {
+        Some(#(punctuation, style, start, in)) -> {
+          let style = Ordered(start:, punctuation:, style:)
+          let #(list, in) =
+            parse_list(in, refs, attrs, style, Tight, [], splitters)
+          Some(#(in, refs, list))
+        }
+        None -> None
+      }
+    }
+
+    "a" <> _
+    | "b" <> _
+    | "c" <> _
+    | "d" <> _
+    | "e" <> _
+    | "f" <> _
+    | "g" <> _
+    | "h" <> _
+    | "i" <> _
+    | "j" <> _
+    | "k" <> _
+    | "l" <> _
+    | "m" <> _
+    | "n" <> _
+    | "o" <> _
+    | "p" <> _
+    | "q" <> _
+    | "r" <> _
+    | "s" <> _
+    | "t" <> _
+    | "u" <> _
+    | "v" <> _
+    | "w" <> _
+    | "x" <> _
+    | "y" <> _
+    | "z" <> _ ->
+      case parse_lower_list(in, 0, paren) {
+        Some(#(punctuation, style, start, in)) -> {
+          let style = Ordered(start:, punctuation:, style:)
+          let #(list, in) =
+            parse_list(in, refs, attrs, style, Tight, [], splitters)
+          Some(#(in, refs, list))
+        }
+        None -> None
+      }
+
+    "A" <> _
+    | "B" <> _
+    | "C" <> _
+    | "D" <> _
+    | "E" <> _
+    | "F" <> _
+    | "G" <> _
+    | "H" <> _
+    | "I" <> _
+    | "J" <> _
+    | "K" <> _
+    | "L" <> _
+    | "M" <> _
+    | "N" <> _
+    | "O" <> _
+    | "P" <> _
+    | "Q" <> _
+    | "R" <> _
+    | "S" <> _
+    | "T" <> _
+    | "U" <> _
+    | "V" <> _
+    | "W" <> _
+    | "X" <> _
+    | "Y" <> _
+    | "Z" <> _ ->
+      case parse_upper_list(in, 0, paren) {
+        Some(#(punctuation, style, start, in)) -> {
+          let style = Ordered(start:, punctuation:, style:)
+          let #(list, in) =
+            parse_list(in, refs, attrs, style, Tight, [], splitters)
+          Some(#(in, refs, list))
+        }
+        None -> None
+      }
+
+    _ -> None
   }
 }
 
@@ -2271,120 +2207,6 @@ fn parse_upper_list(
       }
       Some(#(punctuation, UpperAlphaOrdinal, num, rest))
     }
-    _ -> None
-  }
-}
-
-fn parse_ordered_list_start_parens(
-  in: String,
-) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
-  case in {
-    "0" <> in -> parse_number_ordinal(in, 0)
-    "1" <> in -> parse_number_ordinal(in, 1)
-    "2" <> in -> parse_number_ordinal(in, 2)
-    "3" <> in -> parse_number_ordinal(in, 3)
-    "4" <> in -> parse_number_ordinal(in, 4)
-    "5" <> in -> parse_number_ordinal(in, 5)
-    "6" <> in -> parse_number_ordinal(in, 6)
-    "7" <> in -> parse_number_ordinal(in, 7)
-    "8" <> in -> parse_number_ordinal(in, 8)
-    "9" <> in -> parse_number_ordinal(in, 9)
-
-    "a" <> in -> parse_alpha_ordinal_parens(in, 1, LowerAlphaOrdinal)
-    "b" <> in -> parse_alpha_ordinal_parens(in, 2, LowerAlphaOrdinal)
-    "c" <> in -> parse_alpha_ordinal_parens(in, 3, LowerAlphaOrdinal)
-    "d" <> in -> parse_alpha_ordinal_parens(in, 4, LowerAlphaOrdinal)
-    "e" <> in -> parse_alpha_ordinal_parens(in, 5, LowerAlphaOrdinal)
-    "f" <> in -> parse_alpha_ordinal_parens(in, 6, LowerAlphaOrdinal)
-    "g" <> in -> parse_alpha_ordinal_parens(in, 7, LowerAlphaOrdinal)
-    "h" <> in -> parse_alpha_ordinal_parens(in, 8, LowerAlphaOrdinal)
-    "i" <> in -> parse_alpha_ordinal_parens(in, 9, LowerAlphaOrdinal)
-    "j" <> in -> parse_alpha_ordinal_parens(in, 10, LowerAlphaOrdinal)
-    "k" <> in -> parse_alpha_ordinal_parens(in, 11, LowerAlphaOrdinal)
-    "l" <> in -> parse_alpha_ordinal_parens(in, 12, LowerAlphaOrdinal)
-    "m" <> in -> parse_alpha_ordinal_parens(in, 13, LowerAlphaOrdinal)
-    "n" <> in -> parse_alpha_ordinal_parens(in, 14, LowerAlphaOrdinal)
-    "o" <> in -> parse_alpha_ordinal_parens(in, 15, LowerAlphaOrdinal)
-    "p" <> in -> parse_alpha_ordinal_parens(in, 16, LowerAlphaOrdinal)
-    "q" <> in -> parse_alpha_ordinal_parens(in, 17, LowerAlphaOrdinal)
-    "r" <> in -> parse_alpha_ordinal_parens(in, 18, LowerAlphaOrdinal)
-    "s" <> in -> parse_alpha_ordinal_parens(in, 19, LowerAlphaOrdinal)
-    "t" <> in -> parse_alpha_ordinal_parens(in, 20, LowerAlphaOrdinal)
-    "u" <> in -> parse_alpha_ordinal_parens(in, 21, LowerAlphaOrdinal)
-    "v" <> in -> parse_alpha_ordinal_parens(in, 22, LowerAlphaOrdinal)
-    "w" <> in -> parse_alpha_ordinal_parens(in, 23, LowerAlphaOrdinal)
-    "x" <> in -> parse_alpha_ordinal_parens(in, 24, LowerAlphaOrdinal)
-    "y" <> in -> parse_alpha_ordinal_parens(in, 25, LowerAlphaOrdinal)
-    "z" <> in -> parse_alpha_ordinal_parens(in, 26, LowerAlphaOrdinal)
-    "A" <> in -> parse_alpha_ordinal_parens(in, 1, UpperAlphaOrdinal)
-    "B" <> in -> parse_alpha_ordinal_parens(in, 2, UpperAlphaOrdinal)
-    "C" <> in -> parse_alpha_ordinal_parens(in, 3, UpperAlphaOrdinal)
-    "D" <> in -> parse_alpha_ordinal_parens(in, 4, UpperAlphaOrdinal)
-    "E" <> in -> parse_alpha_ordinal_parens(in, 5, UpperAlphaOrdinal)
-    "F" <> in -> parse_alpha_ordinal_parens(in, 6, UpperAlphaOrdinal)
-    "G" <> in -> parse_alpha_ordinal_parens(in, 7, UpperAlphaOrdinal)
-    "H" <> in -> parse_alpha_ordinal_parens(in, 8, UpperAlphaOrdinal)
-    "I" <> in -> parse_alpha_ordinal_parens(in, 9, UpperAlphaOrdinal)
-    "J" <> in -> parse_alpha_ordinal_parens(in, 10, UpperAlphaOrdinal)
-    "K" <> in -> parse_alpha_ordinal_parens(in, 11, UpperAlphaOrdinal)
-    "L" <> in -> parse_alpha_ordinal_parens(in, 12, UpperAlphaOrdinal)
-    "M" <> in -> parse_alpha_ordinal_parens(in, 13, UpperAlphaOrdinal)
-    "N" <> in -> parse_alpha_ordinal_parens(in, 14, UpperAlphaOrdinal)
-    "O" <> in -> parse_alpha_ordinal_parens(in, 15, UpperAlphaOrdinal)
-    "P" <> in -> parse_alpha_ordinal_parens(in, 16, UpperAlphaOrdinal)
-    "Q" <> in -> parse_alpha_ordinal_parens(in, 17, UpperAlphaOrdinal)
-    "R" <> in -> parse_alpha_ordinal_parens(in, 18, UpperAlphaOrdinal)
-    "S" <> in -> parse_alpha_ordinal_parens(in, 19, UpperAlphaOrdinal)
-    "T" <> in -> parse_alpha_ordinal_parens(in, 20, UpperAlphaOrdinal)
-    "U" <> in -> parse_alpha_ordinal_parens(in, 21, UpperAlphaOrdinal)
-    "V" <> in -> parse_alpha_ordinal_parens(in, 22, UpperAlphaOrdinal)
-    "W" <> in -> parse_alpha_ordinal_parens(in, 23, UpperAlphaOrdinal)
-    "X" <> in -> parse_alpha_ordinal_parens(in, 24, UpperAlphaOrdinal)
-    "Y" <> in -> parse_alpha_ordinal_parens(in, 25, UpperAlphaOrdinal)
-    "Z" <> in -> parse_alpha_ordinal_parens(in, 26, UpperAlphaOrdinal)
-    _ -> None
-  }
-}
-
-fn parse_number_ordinal(
-  in: String,
-  num: Int,
-) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
-  case in {
-    "0" <> in -> parse_number_ordinal(in, num * 10 + 0)
-    "1" <> in -> parse_number_ordinal(in, num * 10 + 1)
-    "2" <> in -> parse_number_ordinal(in, num * 10 + 2)
-    "3" <> in -> parse_number_ordinal(in, num * 10 + 3)
-    "4" <> in -> parse_number_ordinal(in, num * 10 + 4)
-    "5" <> in -> parse_number_ordinal(in, num * 10 + 5)
-    "6" <> in -> parse_number_ordinal(in, num * 10 + 6)
-    "7" <> in -> parse_number_ordinal(in, num * 10 + 7)
-    "8" <> in -> parse_number_ordinal(in, num * 10 + 8)
-    "9" <> in -> parse_number_ordinal(in, num * 10 + 9)
-    ") " <> in | ")\n" <> in -> Some(#(DoubleParen, NumericOrdinal, num, in))
-    _ -> None
-  }
-}
-
-fn parse_alpha_ordinal_parens(
-  in: String,
-  num: Int,
-  ordinal: OrdinalStyle,
-) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
-  case in {
-    ") " <> in | ")\n" <> in -> Some(#(DoubleParen, ordinal, num, in))
-    _ -> None
-  }
-}
-
-fn parse_ordered_list_alpha(
-  in: String,
-  num: Int,
-  ordinal: OrdinalStyle,
-) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
-  case in {
-    ". " <> in | ".\n" <> in -> Some(#(FullStop, ordinal, num, in))
-    ") " <> in | ")\n" <> in -> Some(#(SingleParen, ordinal, num, in))
     _ -> None
   }
 }
