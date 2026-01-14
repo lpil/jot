@@ -353,3 +353,88 @@ two
 </li>
 </ol>
 ```
+
+```
+1) one
+2) two
+.
+<ol>
+<li>
+one
+</li>
+<li>
+two
+</li>
+</ol>
+```
+
+```
+(1) one
+(2) two
+.
+<ol>
+<li>
+one
+</li>
+<li>
+two
+</li>
+</ol>
+```
+
+```
+(a) one
+(b) two
+.
+<ol type="a">
+<li>
+one
+</li>
+<li>
+two
+</li>
+</ol>
+```
+
+```
+(D) one
+(E) two
+.
+<ol start="4" type="A">
+<li>
+one
+</li>
+<li>
+two
+</li>
+</ol>
+```
+
+```
+a. one
+b. two
+.
+<ol type="a">
+<li>
+one
+</li>
+<li>
+two
+</li>
+</ol>
+```
+
+```
+101) one
+102) two
+.
+<ol start="101">
+<li>
+one
+</li>
+<li>
+two
+</li>
+</ol>
+```
+
