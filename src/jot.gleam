@@ -140,7 +140,7 @@ fn letter_ordinal(c: String) -> Option(#(Int, OrdinalStyle)) {
 
 type ListStyle {
   Bullet(BulletStyle)
-  Ordered(OrdinalPunctuation, OrdinalStyle)
+  Ordered(start: Int, punctuation: OrdinalPunctuation, style: OrdinalStyle)
 }
 
 pub type Inline {
@@ -472,7 +472,7 @@ fn parse_container(
           }
           let style = Bullet(bullet_style)
           let #(list, in) =
-            parse_list(in2, refs, attrs, style, 0, Tight, [], splitters)
+            parse_list(in2, refs, attrs, style, Tight, [], splitters)
           #(in, refs, Some(list), dict.new())
         }
         None, _ -> {
@@ -496,11 +496,11 @@ fn parse_container(
     | "7" <> _
     | "8" <> _
     | "9" <> _ -> {
-      case parse_ordered_list_start(in, 0) {
-        Some(#(style, ordinal, start, in)) -> {
-          let style = Ordered(style, ordinal)
+      case parse_number_list(in, 0, False) {
+        Some(#(punctuation, style, start, in)) -> {
+          let style = Ordered(start:, punctuation:, style:)
           let #(list, in) =
-            parse_list(in, refs, attrs, style, start, Tight, [], splitters)
+            parse_list(in, refs, attrs, style, Tight, [], splitters)
           #(in, refs, Some(list), dict.new())
         }
         None -> {
@@ -513,10 +513,10 @@ fn parse_container(
 
     "(" <> in -> {
       case parse_ordered_list_start_parens(in) {
-        Some(#(style, ordinal, start, in)) -> {
-          let style = Ordered(style, ordinal)
+        Some(#(punctuation, style, start, in)) -> {
+          let style = Ordered(start:, style:, punctuation:)
           let #(list, in) =
-            parse_list(in, refs, attrs, style, start, Tight, [], splitters)
+            parse_list(in, refs, attrs, style, Tight, [], splitters)
           #(in, refs, Some(list), dict.new())
         }
         None -> {
@@ -649,10 +649,10 @@ fn parse_alpha(
   case letter_ordinal(letter) {
     Some(#(num, ordinal)) ->
       case parse_ordered_list_alpha(rest, num, ordinal) {
-        Some(#(style, ordinal, start, in2)) -> {
-          let style = Ordered(style, ordinal)
+        Some(#(punctuation, style, start, in2)) -> {
+          let style = Ordered(start:, style:, punctuation:)
           let #(list, in) =
-            parse_list(in2, refs, attrs, style, start, Tight, [], splitters)
+            parse_list(in2, refs, attrs, style, Tight, [], splitters)
           #(in, refs, Some(list), dict.new())
         }
         None -> {
@@ -1896,7 +1896,6 @@ fn parse_list(
   refs: Refs,
   attrs: Dict(String, String),
   style: ListStyle,
-  start: Int,
   layout: ListLayout,
   items: List(List(Container)),
   splitters: Splitters,
@@ -1904,14 +1903,13 @@ fn parse_list(
   let #(inline_in, in, layout) = take_list_item_chars(in, "", style, layout)
   let item = parse_list_item(inline_in, refs, attrs, splitters, [])
   let items = [item, ..items]
-  case parse_list_marker(in) {
-    Some(#(next_style, in)) if next_style == style ->
-      parse_list(in, refs, attrs, style, start, layout, items, splitters)
-    _ -> {
+  case continue_list(in, style) {
+    Some(in) -> parse_list(in, refs, attrs, style, layout, items, splitters)
+    None -> {
       let items = list.reverse(items)
       let container = case style {
-        Bullet(bullet_style) -> BulletList(layout:, style: bullet_style, items:)
-        Ordered(punctuation, ordinal) ->
+        Bullet(style) -> BulletList(layout:, style:, items:)
+        Ordered(start:, punctuation:, style: ordinal) ->
           OrderedList(layout:, punctuation:, ordinal:, start:, items:)
       }
       #(container, in)
@@ -1968,12 +1966,12 @@ fn take_list_item_chars(
 
     // A blank line followed by un-indented content, so the end of this
     // current list item.
-    "\n" <> rest -> {
-      let layout = case parse_list_marker(rest) {
-        Some(#(next_style, _)) if next_style == style -> Loose
-        _ -> layout
+    "\n" <> in -> {
+      let layout = case continue_list(in, style) {
+        Some(_) -> Loose
+        None -> layout
       }
-      #(acc, rest, layout)
+      #(acc, in, layout)
     }
 
     _ -> {
@@ -1990,13 +1988,16 @@ fn parse_list_marker(in: String) -> Option(#(ListStyle, String)) {
     "- " <> in | "-\n" <> in -> Some(#(Bullet(BulletDash), in))
     "* " <> in | "*\n" <> in -> Some(#(Bullet(BulletStar), in))
     "+ " <> in | "+\n" <> in -> Some(#(Bullet(BulletPlus), in))
+    "(" <> in -> parse_list_marker_maybe_paren(in, True)
+    _ -> parse_list_marker_maybe_paren(in, False)
+  }
+}
 
-    "(" <> in ->
-      case parse_ordered_list_start_parens(in) {
-        Some(#(style, ordinal, _, in)) -> Some(#(Ordered(style, ordinal), in))
-        None -> None
-      }
-
+fn parse_list_marker_maybe_paren(
+  in: String,
+  paren: Bool,
+) -> Option(#(ListStyle, String)) {
+  case in {
     "0" <> _
     | "1" <> _
     | "2" <> _
@@ -2007,75 +2008,76 @@ fn parse_list_marker(in: String) -> Option(#(ListStyle, String)) {
     | "7" <> _
     | "8" <> _
     | "9" <> _ ->
-      case parse_ordered_list_start(in, 0) {
-        Some(#(style, ordinal, _, in)) -> Some(#(Ordered(style, ordinal), in))
+      case parse_number_list(in, 0, paren) {
+        Some(#(punctuation, style, start, in)) ->
+          Some(#(Ordered(start:, style:, punctuation:), in))
         None -> None
       }
 
-    "a" <> in
-    | "b" <> in
-    | "c" <> in
-    | "d" <> in
-    | "e" <> in
-    | "f" <> in
-    | "g" <> in
-    | "h" <> in
-    | "i" <> in
-    | "j" <> in
-    | "k" <> in
-    | "l" <> in
-    | "m" <> in
-    | "n" <> in
-    | "o" <> in
-    | "p" <> in
-    | "q" <> in
-    | "r" <> in
-    | "s" <> in
-    | "t" <> in
-    | "u" <> in
-    | "v" <> in
-    | "w" <> in
-    | "x" <> in
-    | "y" <> in -> parse_alpha_ordinal(in, LowerAlphaOrdinal)
+    "a" <> _
+    | "b" <> _
+    | "c" <> _
+    | "d" <> _
+    | "e" <> _
+    | "f" <> _
+    | "g" <> _
+    | "h" <> _
+    | "i" <> _
+    | "j" <> _
+    | "k" <> _
+    | "l" <> _
+    | "m" <> _
+    | "n" <> _
+    | "o" <> _
+    | "p" <> _
+    | "q" <> _
+    | "r" <> _
+    | "s" <> _
+    | "t" <> _
+    | "u" <> _
+    | "v" <> _
+    | "w" <> _
+    | "x" <> _
+    | "y" <> _
+    | "z" <> _ ->
+      case parse_lower_list(in, 0, paren) {
+        Some(#(punctuation, style, start, in)) ->
+          Some(#(Ordered(start:, style:, punctuation:), in))
+        None -> None
+      }
 
-    "z" <> in
-    | "A" <> in
-    | "B" <> in
-    | "C" <> in
-    | "D" <> in
-    | "E" <> in
-    | "F" <> in
-    | "G" <> in
-    | "H" <> in
-    | "I" <> in
-    | "J" <> in
-    | "K" <> in
-    | "L" <> in
-    | "M" <> in
-    | "N" <> in
-    | "O" <> in
-    | "P" <> in
-    | "Q" <> in
-    | "R" <> in
-    | "S" <> in
-    | "T" <> in
-    | "U" <> in
-    | "V" <> in
-    | "W" <> in
-    | "X" <> in
-    | "Y" <> in
-    | "Z" <> in -> parse_alpha_ordinal(in, UpperAlphaOrdinal)
-    _ -> None
-  }
-}
+    "A" <> _
+    | "B" <> _
+    | "C" <> _
+    | "D" <> _
+    | "E" <> _
+    | "F" <> _
+    | "G" <> _
+    | "H" <> _
+    | "I" <> _
+    | "J" <> _
+    | "K" <> _
+    | "L" <> _
+    | "M" <> _
+    | "N" <> _
+    | "O" <> _
+    | "P" <> _
+    | "Q" <> _
+    | "R" <> _
+    | "S" <> _
+    | "T" <> _
+    | "U" <> _
+    | "V" <> _
+    | "W" <> _
+    | "X" <> _
+    | "Y" <> _
+    | "Z" <> _ ->
+      case parse_upper_list(in, 0, paren) {
+        Some(#(punctuation, style, start, in)) ->
+          Some(#(Ordered(start:, style:, punctuation:), in))
+        None -> None
+      }
 
-fn parse_alpha_ordinal(
-  in: String,
-  ordinal: OrdinalStyle,
-) -> Option(#(ListStyle, String)) {
-  case in {
-    ". " <> rest | ".\n" <> rest -> Some(#(Ordered(FullStop, ordinal), rest))
-    ") " <> rest | ")\n" <> rest -> Some(#(Ordered(SingleParen, ordinal), rest))
     _ -> None
   }
 }
@@ -2115,12 +2117,28 @@ fn take_list_item_chars_indented(
     "\n" <> rest2 -> #(acc, rest2, layout)
 
     _ -> {
-      case parse_list_marker(in) {
-        Some(#(next_style, _)) if next_style == style -> #(acc, in, layout)
-        _ ->
+      case continue_list(in, style) {
+        Some(_) -> #(acc, in, layout)
+        None ->
           take_list_item_chars_indented(in, acc <> "\n", style, layout, indent)
       }
     }
+  }
+}
+
+fn continue_list(in: String, style: ListStyle) -> Option(String) {
+  case parse_list_marker(in) {
+    Some(#(next, in)) ->
+      case style, next {
+        Ordered(punctuation: p1, style: s1, start: _),
+          Ordered(punctuation: p2, style: s2, start: _)
+          if p1 == p2 && s1 == s2
+        -> Some(in)
+
+        _, _ if style == next -> Some(in)
+        _, _ -> None
+      }
+    None -> None
   }
 }
 
@@ -2132,24 +2150,127 @@ fn drop_n_spaces(in: String, count: Int) -> String {
   }
 }
 
-fn parse_ordered_list_start(
+fn parse_number_list(
   in: String,
   num: Int,
+  // Whether the ordinal started with a paren
+  paren: Bool,
 ) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
   case in {
-    "0" <> rest -> parse_ordered_list_start(rest, num * 10 + 0)
-    "1" <> rest -> parse_ordered_list_start(rest, num * 10 + 1)
-    "2" <> rest -> parse_ordered_list_start(rest, num * 10 + 2)
-    "3" <> rest -> parse_ordered_list_start(rest, num * 10 + 3)
-    "4" <> rest -> parse_ordered_list_start(rest, num * 10 + 4)
-    "5" <> rest -> parse_ordered_list_start(rest, num * 10 + 5)
-    "6" <> rest -> parse_ordered_list_start(rest, num * 10 + 6)
-    "7" <> rest -> parse_ordered_list_start(rest, num * 10 + 7)
-    "8" <> rest -> parse_ordered_list_start(rest, num * 10 + 8)
-    "9" <> rest -> parse_ordered_list_start(rest, num * 10 + 9)
+    "0" <> rest -> parse_number_list(rest, num * 10 + 0, paren)
+    "1" <> rest -> parse_number_list(rest, num * 10 + 1, paren)
+    "2" <> rest -> parse_number_list(rest, num * 10 + 2, paren)
+    "3" <> rest -> parse_number_list(rest, num * 10 + 3, paren)
+    "4" <> rest -> parse_number_list(rest, num * 10 + 4, paren)
+    "5" <> rest -> parse_number_list(rest, num * 10 + 5, paren)
+    "6" <> rest -> parse_number_list(rest, num * 10 + 6, paren)
+    "7" <> rest -> parse_number_list(rest, num * 10 + 7, paren)
+    "8" <> rest -> parse_number_list(rest, num * 10 + 8, paren)
+    "9" <> rest -> parse_number_list(rest, num * 10 + 9, paren)
     ". " <> rest | ".\n" <> rest -> Some(#(FullStop, NumericOrdinal, num, rest))
-    ") " <> rest | ")\n" <> rest ->
-      Some(#(SingleParen, NumericOrdinal, num, rest))
+    ") " <> rest | ")\n" <> rest -> {
+      let punctuation = case paren {
+        True -> DoubleParen
+        False -> SingleParen
+      }
+      Some(#(punctuation, NumericOrdinal, num, rest))
+    }
+    _ -> None
+  }
+}
+
+fn parse_lower_list(
+  in: String,
+  num: Int,
+  // Whether the ordinal started with a paren
+  paren: Bool,
+) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
+  case in {
+    "a" <> in -> parse_lower_list(in, num * 26 + 1, paren)
+    "b" <> in -> parse_lower_list(in, num * 26 + 2, paren)
+    "c" <> in -> parse_lower_list(in, num * 26 + 3, paren)
+    "d" <> in -> parse_lower_list(in, num * 26 + 4, paren)
+    "e" <> in -> parse_lower_list(in, num * 26 + 5, paren)
+    "f" <> in -> parse_lower_list(in, num * 26 + 6, paren)
+    "g" <> in -> parse_lower_list(in, num * 26 + 7, paren)
+    "h" <> in -> parse_lower_list(in, num * 26 + 8, paren)
+    "i" <> in -> parse_lower_list(in, num * 26 + 9, paren)
+    "j" <> in -> parse_lower_list(in, num * 26 + 10, paren)
+    "k" <> in -> parse_lower_list(in, num * 26 + 11, paren)
+    "l" <> in -> parse_lower_list(in, num * 26 + 12, paren)
+    "m" <> in -> parse_lower_list(in, num * 26 + 13, paren)
+    "n" <> in -> parse_lower_list(in, num * 26 + 14, paren)
+    "o" <> in -> parse_lower_list(in, num * 26 + 15, paren)
+    "p" <> in -> parse_lower_list(in, num * 26 + 16, paren)
+    "q" <> in -> parse_lower_list(in, num * 26 + 17, paren)
+    "r" <> in -> parse_lower_list(in, num * 26 + 18, paren)
+    "s" <> in -> parse_lower_list(in, num * 26 + 19, paren)
+    "t" <> in -> parse_lower_list(in, num * 26 + 20, paren)
+    "u" <> in -> parse_lower_list(in, num * 26 + 21, paren)
+    "v" <> in -> parse_lower_list(in, num * 26 + 22, paren)
+    "w" <> in -> parse_lower_list(in, num * 26 + 23, paren)
+    "x" <> in -> parse_lower_list(in, num * 26 + 24, paren)
+    "y" <> in -> parse_lower_list(in, num * 26 + 25, paren)
+    "z" <> in -> parse_lower_list(in, num * 26 + 26, paren)
+
+    ". " <> rest | ".\n" <> rest if !paren ->
+      Some(#(FullStop, LowerAlphaOrdinal, num, rest))
+
+    ") " <> rest | ")\n" <> rest -> {
+      let punctuation = case paren {
+        True -> DoubleParen
+        False -> SingleParen
+      }
+      Some(#(punctuation, LowerAlphaOrdinal, num, rest))
+    }
+    _ -> None
+  }
+}
+
+fn parse_upper_list(
+  in: String,
+  num: Int,
+  // Whether the ordinal started with a paren
+  paren: Bool,
+) -> Option(#(OrdinalPunctuation, OrdinalStyle, Int, String)) {
+  case in {
+    "A" <> in -> parse_upper_list(in, num * 26 + 1, paren)
+    "B" <> in -> parse_upper_list(in, num * 26 + 2, paren)
+    "C" <> in -> parse_upper_list(in, num * 26 + 3, paren)
+    "D" <> in -> parse_upper_list(in, num * 26 + 4, paren)
+    "E" <> in -> parse_upper_list(in, num * 26 + 5, paren)
+    "F" <> in -> parse_upper_list(in, num * 26 + 6, paren)
+    "G" <> in -> parse_upper_list(in, num * 26 + 7, paren)
+    "H" <> in -> parse_upper_list(in, num * 26 + 8, paren)
+    "I" <> in -> parse_upper_list(in, num * 26 + 9, paren)
+    "J" <> in -> parse_upper_list(in, num * 26 + 10, paren)
+    "K" <> in -> parse_upper_list(in, num * 26 + 11, paren)
+    "L" <> in -> parse_upper_list(in, num * 26 + 12, paren)
+    "M" <> in -> parse_upper_list(in, num * 26 + 13, paren)
+    "N" <> in -> parse_upper_list(in, num * 26 + 14, paren)
+    "O" <> in -> parse_upper_list(in, num * 26 + 15, paren)
+    "P" <> in -> parse_upper_list(in, num * 26 + 16, paren)
+    "Q" <> in -> parse_upper_list(in, num * 26 + 17, paren)
+    "R" <> in -> parse_upper_list(in, num * 26 + 18, paren)
+    "S" <> in -> parse_upper_list(in, num * 26 + 19, paren)
+    "T" <> in -> parse_upper_list(in, num * 26 + 20, paren)
+    "U" <> in -> parse_upper_list(in, num * 26 + 21, paren)
+    "V" <> in -> parse_upper_list(in, num * 26 + 22, paren)
+    "W" <> in -> parse_upper_list(in, num * 26 + 23, paren)
+    "X" <> in -> parse_upper_list(in, num * 26 + 24, paren)
+    "Y" <> in -> parse_upper_list(in, num * 26 + 25, paren)
+    "Z" <> in -> parse_upper_list(in, num * 26 + 26, paren)
+
+    ". " <> rest | ".\n" <> rest if !paren ->
+      Some(#(FullStop, UpperAlphaOrdinal, num, rest))
+
+    ") " <> rest | ")\n" <> rest -> {
+      let punctuation = case paren {
+        True -> DoubleParen
+        False -> SingleParen
+      }
+      Some(#(punctuation, UpperAlphaOrdinal, num, rest))
+    }
     _ -> None
   }
 }
@@ -2169,7 +2290,6 @@ fn parse_ordered_list_start_parens(
     "8" <> in -> parse_number_ordinal(in, 8)
     "9" <> in -> parse_number_ordinal(in, 9)
 
-    // Alpha: (a), (A), etc.
     "a" <> in -> parse_alpha_ordinal_parens(in, 1, LowerAlphaOrdinal)
     "b" <> in -> parse_alpha_ordinal_parens(in, 2, LowerAlphaOrdinal)
     "c" <> in -> parse_alpha_ordinal_parens(in, 3, LowerAlphaOrdinal)
