@@ -1,6 +1,6 @@
 # Changelog
 
-## v9.0.0 - Unreleased
+## v9.0.0 - 2026-01-14
 
 - Added support for inserts, deletes, and marks.
 - Added support for nested lists.
