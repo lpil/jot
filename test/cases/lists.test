@@ -438,3 +438,35 @@ two
 </ol>
 ```
 
+```
+C) one
+D) two
+E) three
+.
+<ol start="3" type="A">
+<li>
+one
+</li>
+<li>
+two
+</li>
+<li>
+three
+</li>
+</ol>
+```
+
+```
+d. one
+e. two
+.
+<ol start="4" type="a">
+<li>
+one
+</li>
+<li>
+two
+</li>
+</ol>
+```
+
