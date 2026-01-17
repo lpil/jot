@@ -12,6 +12,7 @@ const cases_directory = "test/cases"
 pub fn load_example_test_cases() -> List(Example) {
   let assert Ok(tests) = simplifile.read_directory(cases_directory)
   tests
+  |> list.filter(string.ends_with(_, ".test"))
   |> list.map(filepath.join(cases_directory, _))
   |> list.flat_map(load_and_parse_file)
 }

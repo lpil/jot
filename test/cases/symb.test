@@ -1,0 +1,29 @@
+```
+:+1: :scream:
+.
+<p><span class="symbol">+1</span> <span class="symbol">scream</span></p>
+```
+
+```
+:ice:scream:
+.
+<p><span class="symbol">ice</span>scream:</p>
+```
+
+```
+::lucy:
+.
+<p>:<span class="symbol">lucy</span></p>
+```
+
+```
+:::: fenced
+:runawaysymbol
+:lucy:
+::::
+.
+<div class="fenced">
+<p>:runawaysymbol
+<span class="symbol">lucy</span></p>
+</div>
+```
