@@ -1,5 +1,7 @@
 # Changelog
 
+## v10.0.0 - 2026-01-19
+
 - Added support for symbols.
 
 ## v9.0.0 - 2026-01-14

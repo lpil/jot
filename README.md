@@ -59,5 +59,6 @@ This project is a work in progress. So far it supports:
 - [x] Smart replacing of `...` with ellipsis
 - [x] Smart replacing of hyphens with dashes
 - [x] Span with attributes
+- [x] Symbols
 - [x] Thematic breaks
 - [x] Unordered lists
