@@ -249,3 +249,32 @@ a link or span or image.
 .
 <p><span class="bar_">x_y</span></p>
 ```
+
+Link with attributes in a list (issue #43):
+```
+- This is a [link](#){.wibble}
+.
+<ul>
+<li>
+This is a <a class="wibble" href="#">link</a>
+</li>
+</ul>
+```
+
+Link with attributes followed by text:
+```
+This is a [link](#){.wibble} more text
+.
+<p>This is a <a class="wibble" href="#">link</a> more text</p>
+```
+
+Link with attributes followed by text in a list:
+```
+- This is a [link](#){.wibble} more text
+.
+<ul>
+<li>
+This is a <a class="wibble" href="#">link</a> more text
+</li>
+</ul>
+```
