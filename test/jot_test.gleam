@@ -47,3 +47,36 @@ fn run_testcase(testcase: support.Example) -> Result(Nil, Nil) {
     }
   }
 }
+
+pub fn inner_text_test() {
+  let document =
+    "# Hello!
+
+Here is the first paragraph. It's _very_ exciting!
+
+This second paragraph includes a [link](https://example.com).
+
+- One
+- Two
+
+  > This list has an inline blockquote
+
+- Three
+
+Wicked.
+"
+
+  let assert [t1, t2, t3, t4, t5] =
+    jot.parse(document).content |> list.map(jot.inner_text)
+  assert t1 == "Hello!"
+  assert t2 == "Here is the first paragraph. It's very exciting!"
+  assert t3 == "This second paragraph includes a link."
+  assert t4 == "One
+
+Two
+
+This list has an inline blockquote
+
+Three"
+  assert t5 == "Wicked."
+}
