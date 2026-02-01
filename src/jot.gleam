@@ -2932,3 +2932,48 @@ fn ordered_attributes_to_html(
     html <> " " <> pair.0 <> "=\"" <> pair.1 <> "\""
   })
 }
+
+/// Get the text from within a container.
+///
+/// Raw blocks, footnotes, and the ordinals and bullets from lists are not
+/// included.
+///
+pub fn inner_text(container: Container) -> String {
+  case container {
+    RawBlock(..) | ThematicBreak -> ""
+
+    Codeblock(content:, ..) -> content
+
+    Paragraph(content:, ..) | Heading(content:, ..) ->
+      list.fold(content, "", inline_text)
+
+    BlockQuote(items:, ..) | Div(items:, ..) ->
+      list.map(items, inner_text) |> string.join("\n\n")
+
+    BulletList(items:, ..) | OrderedList(items:, ..) ->
+      items |> list.flat_map(list.map(_, inner_text)) |> string.join("\n\n")
+  }
+}
+
+fn inline_text(accumulator: String, item: Inline) -> String {
+  case item {
+    Footnote(..) | Image(..) -> accumulator
+
+    Linebreak -> accumulator <> "\n\n"
+    NonBreakingSpace -> accumulator <> " "
+
+    Code(content:)
+    | MathInline(content:)
+    | MathDisplay(content:)
+    | Symbol(content:)
+    | Text(content) -> accumulator <> content
+
+    Link(content:, ..)
+    | Span(content:, ..)
+    | Emphasis(content:)
+    | Strong(content:)
+    | Delete(content:)
+    | Insert(content:)
+    | Mark(content:) -> list.fold(content, accumulator, inline_text)
+  }
+}

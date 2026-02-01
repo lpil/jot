@@ -2,7 +2,12 @@
 
 ## [Unreleased]
 
-- Fixed inline element with attributes is inside a bulleted list not being processed correctly.
+- Fixed inline element with attributes is inside a bulleted list not
+  being processed correctly.
+
+## v10.1.0 - 2026-01-23
+
+- Added the `inner_text` function.
 
 ## v10.0.0 - 2026-01-19
 
