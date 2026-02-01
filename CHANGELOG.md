@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## v10.1.1
 
 - Fixed inline element with attributes is inside a bulleted list not
   being processed correctly.
