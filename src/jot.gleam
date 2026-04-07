@@ -68,7 +68,7 @@ pub type Container {
     /// :::
     /// ```
     ///
-    /// If a class was given then it is stored in this attribute, so it can be
+    /// If a class was given then it is stored in this field so it can be
     /// pattern matched upon. The class is also present in the `attributes`
     /// dictionary, merged with any other attributes and classes given using
     /// the block attribute syntax (`{key="value"}`).
