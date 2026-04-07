@@ -1,6 +1,10 @@
 # Changelog
 
-## v10.1.1
+## v11.0.0 - 2026-04-07
+
+- The div record gains the `class` field.
+
+## v10.1.1 - 2026-02-01
 
 - Fixed inline element with attributes is inside a bulleted list not
   being processed correctly.

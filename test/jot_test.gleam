@@ -1,6 +1,8 @@
+import gleam/dict
 import gleam/int
 import gleam/io
 import gleam/list
+import gleam/option
 import gleam/result
 import gleam/string
 import gleam_community/ansi
@@ -79,4 +81,28 @@ This list has an inline blockquote
 
 Three"
   assert t5 == "Wicked."
+}
+
+pub fn div_test() {
+  let document =
+    jot.parse(
+      "::: hello
+hey hey what up
+:::",
+    )
+  assert document.references == dict.new()
+  assert document.reference_attributes == dict.new()
+  assert document.footnotes == dict.new()
+  assert document.content
+    == [
+      jot.Div(
+        class: option.Some("hello"),
+        attributes: dict.from_list([#("class", "hello")]),
+        items: [
+          jot.Paragraph(attributes: dict.new(), content: [
+            jot.Text("hey hey what up"),
+          ]),
+        ],
+      ),
+    ]
 }

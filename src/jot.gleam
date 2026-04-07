@@ -59,7 +59,24 @@ pub type Container {
     items: List(List(Container)),
   )
   BlockQuote(attributes: Dict(String, String), items: List(Container))
-  Div(attributes: Dict(String, String), items: List(Container))
+  Div(
+    /// The div syntax allows a single class to be given after the `:::`, like so:
+    ///
+    /// ```djot
+    /// ::: my-class-here
+    /// Hello, world!
+    /// :::
+    /// ```
+    ///
+    /// If a class was given then it is stored in this attribute, so it can be
+    /// pattern matched upon. The class is also present in the `attributes`
+    /// dictionary, merged with any other attributes and classes given using
+    /// the block attribute syntax (`{key="value"}`).
+    ///
+    class: Option(String),
+    attributes: Dict(String, String),
+    items: List(Container),
+  )
 }
 
 pub type BulletStyle {
@@ -455,8 +472,8 @@ fn parse_container(
             parse_paragraph(in, attrs, splitters, div_close_size)
           #(in, refs, Some(paragraph), dict.new())
         }
-        Some(#(in, attrs, content)) -> {
-          let div = Some(Div(attrs, content))
+        Some(#(in, class, attrs, content)) -> {
+          let div = Some(Div(class, attrs, content))
           #(in, refs, div, dict.new())
         }
       }
@@ -606,9 +623,13 @@ fn parse_div(
     "" -> attrs
     class -> add_attribute(attrs, "class", class)
   }
+  let class = case class {
+    "" -> option.None
+    _ -> option.Some(class)
+  }
   let #(rest, content) =
     parse_div_content(rest, refs, dict.new(), size, splitters, [])
-  Some(#(rest, attrs, content))
+  Some(#(rest, class, attrs, content))
 }
 
 fn parse_div_content(
@@ -2517,7 +2538,7 @@ fn container_to_html(
       |> containers_to_html(items, refs, _)
       |> close_tag("blockquote")
 
-    Div(attributes:, items:) ->
+    Div(class: _, attributes:, items:) ->
       html
       |> open_tag("div", attributes)
       |> append_to_html("\n")
