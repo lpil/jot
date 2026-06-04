@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added support for super and subscript inline syntax (`^`/`{^` and `~`/`{~` respectively)
+
 ## v11.0.0 - 2026-04-07
 
 - The div record gains the `class` field.

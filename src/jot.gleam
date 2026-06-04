@@ -122,6 +122,8 @@ pub type Inline {
   Delete(content: List(Inline))
   Insert(content: List(Inline))
   Mark(content: List(Inline))
+  Superscript(content: List(Inline))
+  Subscript(content: List(Inline))
   Footnote(reference: String)
   Code(content: String)
   MathInline(content: String)
@@ -187,8 +189,28 @@ pub fn parse(djot: String) -> Document {
       verbatim_line_end: splitter.new([" ", "\n"]),
       codeblock_language: splitter.new(["`", "\n"]),
       inline: splitter.new([
-        "\\", "_", "*", "[^", "[", "![", "$$`", "$`", "`", "\n", "--", "...",
-        "<", "{-", "{+", "{=", "{", ":",
+        "\\",
+        "_",
+        "*",
+        "[^",
+        "[",
+        "![",
+        "$$`",
+        "$`",
+        "`",
+        "\n",
+        "--",
+        "...",
+        "<",
+        "{-",
+        "{+",
+        "{=",
+        "~",
+        "{~",
+        "^",
+        "{^",
+        "{",
+        ":",
       ]),
       link_destination: splitter.new([")", "]", "\n"]),
       math_end: splitter.new(["`"]),
@@ -729,7 +751,10 @@ fn parse_div_class(in: String) -> Option(#(String, String)) {
   }
 }
 
-fn parse_thematic_break(count: Int, in: String) -> Option(#(Container, String)) {
+fn parse_thematic_break(
+  count: Int,
+  in: String,
+) -> Option(#(Container, String)) {
   case in {
     "" | "\n" <> _ if count >= 3 -> Some(#(ThematicBreak, in))
     " " <> rest | "\t" <> rest -> parse_thematic_break(count, rest)
@@ -814,7 +839,11 @@ fn slurp_verbatim_line(
   }
 }
 
-fn parse_codeblock_end(in: String, delim: String, count: Int) -> Option(String) {
+fn parse_codeblock_end(
+  in: String,
+  delim: String,
+  count: Int,
+) -> Option(String) {
   case in {
     "\n" <> in if count == 0 -> Some(in)
     _ if count == 0 -> Some(in)
@@ -942,7 +971,10 @@ fn parse_attributes(
   }
 }
 
-fn parse_attribute(in: String, key: String) -> Option(#(String, String, String)) {
+fn parse_attribute(
+  in: String,
+  key: String,
+) -> Option(#(String, String, String)) {
   case in {
     "" | " " <> _ -> None
     "=\"" <> in -> parse_attribute_quoted_value(in, key, "")
@@ -1157,7 +1189,11 @@ fn id_sanitise(content: String) -> String {
   |> string.replace("\n", "-")
 }
 
-fn take_heading_chars(in: String, level: Int, acc: String) -> #(String, String) {
+fn take_heading_chars(
+  in: String,
+  level: Int,
+  acc: String,
+) -> #(String, String) {
   case in {
     "" | "\n" -> #(acc, "")
     "\n\n" <> in -> #(acc, in)
@@ -1371,7 +1407,7 @@ fn parse_inline(
     // Delete
     #(a, "{-", in) -> {
       let text = text <> a
-      case parse_insert_delete_mark(in, splitters, "-}") {
+      case parse_insert_delete_mark_sup_sub(in, splitters, "-}") {
         None -> parse_inline(in, splitters, text <> "{-", acc)
         Some(#(inner, in)) ->
           parse_inline(in, splitters, "", [Delete(inner), Text(text), ..acc])
@@ -1381,7 +1417,7 @@ fn parse_inline(
     // Insert
     #(a, "{+", in) -> {
       let text = text <> a
-      case parse_insert_delete_mark(in, splitters, "+}") {
+      case parse_insert_delete_mark_sup_sub(in, splitters, "+}") {
         None -> parse_inline(in, splitters, text <> "{+", acc)
         Some(#(inner, in)) ->
           parse_inline(in, splitters, "", [Insert(inner), Text(text), ..acc])
@@ -1391,10 +1427,54 @@ fn parse_inline(
     // Mark
     #(a, "{=", in) -> {
       let text = text <> a
-      case parse_insert_delete_mark(in, splitters, "=}") {
+      case parse_insert_delete_mark_sup_sub(in, splitters, "=}") {
         None -> parse_inline(in, splitters, text <> "{=", acc)
         Some(#(inner, in)) ->
           parse_inline(in, splitters, "", [Mark(inner), Text(text), ..acc])
+      }
+    }
+
+    // Superscript
+    #(a, "^", in) -> {
+      let text = text <> a
+      case parse_insert_delete_mark_sup_sub(in, splitters, "^") {
+        None -> parse_inline(in, splitters, text <> "^", acc)
+        Some(#(inner, in)) ->
+          parse_inline(in, splitters, "", [
+            Superscript(inner),
+            Text(text),
+            ..acc
+          ])
+      }
+    }
+    #(a, "{^", in) -> {
+      let text = text <> a
+      case parse_insert_delete_mark_sup_sub(in, splitters, "^}") {
+        None -> parse_inline(in, splitters, text <> "{^", acc)
+        Some(#(inner, in)) ->
+          parse_inline(in, splitters, "", [
+            Superscript(inner),
+            Text(text),
+            ..acc
+          ])
+      }
+    }
+
+    // Subscript
+    #(a, "~", in) -> {
+      let text = text <> a
+      case parse_insert_delete_mark_sup_sub(in, splitters, "~") {
+        None -> parse_inline(in, splitters, text <> "~", acc)
+        Some(#(inner, in)) ->
+          parse_inline(in, splitters, "", [Subscript(inner), Text(text), ..acc])
+      }
+    }
+    #(a, "{~", in) -> {
+      let text = text <> a
+      case parse_insert_delete_mark_sup_sub(in, splitters, "~}") {
+        None -> parse_inline(in, splitters, text <> "{~", acc)
+        Some(#(inner, in)) ->
+          parse_inline(in, splitters, "", [Subscript(inner), Text(text), ..acc])
       }
     }
 
@@ -1657,7 +1737,7 @@ fn take_emphasis_chars(
   }
 }
 
-fn parse_insert_delete_mark(
+fn parse_insert_delete_mark_sup_sub(
   in: String,
   splitters: Splitters,
   close: String,
@@ -1689,7 +1769,10 @@ fn parse_link_or_recover(
   }
 }
 
-fn consume_until_space_or_newline(in: String, acc: String) -> #(String, String) {
+fn consume_until_space_or_newline(
+  in: String,
+  acc: String,
+) -> #(String, String) {
   case in {
     "" -> #(acc, "")
     " " <> _ -> #(acc, in)
@@ -1897,7 +1980,10 @@ fn take_inline_text(inlines: List(Inline), acc: String) -> String {
         | Emphasis(inlines)
         | Delete(inlines)
         | Insert(inlines)
-        | Mark(inlines) -> take_inline_text(list.append(inlines, rest), acc)
+        | Mark(inlines)
+        | Superscript(inlines)
+        | Subscript(inlines) ->
+          take_inline_text(list.append(inlines, rest), acc)
         Link(_, nested, _) | Image(_, nested, _) | Span(_, nested) -> {
           let acc = take_inline_text(nested, acc)
           take_inline_text(rest, acc)
@@ -2813,6 +2899,18 @@ fn inline_to_html(
       |> inlines_to_html(inlines, refs, NoTrim)
       |> close_tag("mark")
     }
+    Superscript(inlines) -> {
+      html
+      |> open_tag("sup", dict.new())
+      |> inlines_to_html(inlines, refs, NoTrim)
+      |> close_tag("sup")
+    }
+    Subscript(inlines) -> {
+      html
+      |> open_tag("sub", dict.new())
+      |> inlines_to_html(inlines, refs, NoTrim)
+      |> close_tag("sub")
+    }
     Link(attributes, text, destination) -> {
       // Merge: reference attrs <- href <- inline attrs
       let ref_attrs = get_reference_attributes(destination, refs)
@@ -2938,7 +3036,10 @@ fn destination_attribute(
   }
 }
 
-fn attributes_to_html(html: String, attributes: Dict(String, String)) -> String {
+fn attributes_to_html(
+  html: String,
+  attributes: Dict(String, String),
+) -> String {
   attributes
   |> dict.to_list
   |> list.sort(fn(a, b) { string.compare(a.0, b.0) })
@@ -2995,6 +3096,8 @@ fn inline_text(accumulator: String, item: Inline) -> String {
     | Strong(content:)
     | Delete(content:)
     | Insert(content:)
-    | Mark(content:) -> list.fold(content, accumulator, inline_text)
+    | Mark(content:)
+    | Superscript(content:)
+    | Subscript(content:) -> list.fold(content, accumulator, inline_text)
   }
 }
