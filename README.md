@@ -49,6 +49,7 @@ This project is a work in progress. So far it supports:
 - [x] Images (with attributes support)
 - [x] Inline code
 - [x] Inserts, deletes, and marks.
+- [x] Super and Subscript
 - [x] Links (inline and reference, with attributes support)
 - [x] Manual line breaks
 - [x] Maths (inline and display)
