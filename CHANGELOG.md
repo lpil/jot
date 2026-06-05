@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## v12.0.0 - 2026-06-05
 
-- Added support for super and subscript inline syntax (`^`/`{^` and `~`/`{~` respectively)
+- Added support for super and subscript inline syntax (`^`/`{^` and `~`/`{~`
+  respectively)
 
 ## v11.0.0 - 2026-04-07
 
