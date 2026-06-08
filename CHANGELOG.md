@@ -1,5 +1,10 @@
 # Changelog
 
+## v12.0.1 - 2026-06-08
+
+- Fixed a bug where the parse could diverge when parsing multiline blockquotes
+  with non-prefixed lines.
+
 ## v12.0.0 - 2026-06-05
 
 - Added support for super and subscript inline syntax (`^`/`{^` and `~`/`{~`
