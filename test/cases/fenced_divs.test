@@ -29,6 +29,22 @@ Hi
 ```
 
 ```
+::: foo
+> A lazy block quote.
+continued once.
+continued twice.
+:::
+.
+<div class="foo">
+<blockquote>
+<p>A lazy block quote.
+continued once.
+continued twice.</p>
+</blockquote>
+</div>
+```
+
+```
 {#bar .foo}
 :::
 Hi
