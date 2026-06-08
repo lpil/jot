@@ -1094,7 +1094,7 @@ fn take_block_quote_stop_on_div_close(
     None ->
       case rest {
         "" -> #([line, ..lines], "")
-        _ -> take_block_quote_chars(in, [line, ..lines], div_close_size)
+        _ -> take_block_quote_chars(rest, [line, ..lines], div_close_size)
       }
     Some(size) ->
       case check_line_suitable_div_end(line, size) {
@@ -1102,7 +1102,7 @@ fn take_block_quote_stop_on_div_close(
         False ->
           case rest {
             "" -> #([line, ..lines], "")
-            _ -> take_block_quote_chars(in, [line, ..lines], div_close_size)
+            _ -> take_block_quote_chars(rest, [line, ..lines], div_close_size)
           }
       }
   }

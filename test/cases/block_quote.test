@@ -19,6 +19,43 @@ block <em>quote</em>.</p>
 ```
 
 ```
+> wibble
+wobble
+woo
+.
+<blockquote>
+<p>wibble
+wobble
+woo</p>
+</blockquote>
+```
+
+```
+> wibble
+wobble
+> woo
+.
+<blockquote>
+<p>wibble
+wobble
+woo</p>
+</blockquote>
+```
+
+```
+> wibble
+wobble
+
+woo
+.
+<blockquote>
+<p>wibble
+wobble</p>
+</blockquote>
+<p>woo</p>
+```
+
+```
 > block
 >
 > quote
