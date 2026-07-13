@@ -46,6 +46,11 @@ pub type Container {
     content: String,
   )
   RawBlock(content: String)
+  Table(
+    attributes: Dict(String, String),
+    caption: Option(List(Inline)),
+    rows: List(TableRow),
+  )
   BulletList(
     layout: ListLayout,
     style: BulletStyle,
@@ -77,6 +82,20 @@ pub type Container {
     attributes: Dict(String, String),
     items: List(Container),
   )
+}
+
+pub type TableCell {
+  TableCell(alignment: Option(TableAlignment), content: List(Inline))
+}
+
+pub type TableRow {
+  TableRow(header: Bool, cells: List(TableCell))
+}
+
+pub type TableAlignment {
+  AlignLeft
+  AlignCenter
+  AlignRight
 }
 
 pub type BulletStyle {
@@ -175,6 +194,7 @@ type Splitters {
     inline: Splitter,
     link_destination: Splitter,
     math_end: Splitter,
+    table_splitter: Splitter,
   )
 }
 
@@ -214,6 +234,7 @@ pub fn parse(djot: String) -> Document {
       ]),
       link_destination: splitter.new([")", "]", "\n"]),
       math_end: splitter.new(["`"]),
+      table_splitter: splitter.new(["\\|", "|", "`"]),
     )
   let refs = Refs(dict.new(), dict.new(), dict.new(), dict.new())
 
@@ -384,6 +405,8 @@ fn parse_block_after_indent_checked(
   }
 }
 
+// Indentation is only significant for list item or footnote nesting.
+
 fn parse_container(
   in: String,
   refs: Refs,
@@ -464,6 +487,17 @@ fn parse_container(
           let refs =
             Refs(..refs, footnotes: dict.insert(refs.footnotes, id, footnote))
           #(in, refs, None, dict.new())
+        }
+      }
+    }
+
+    "|" <> _ -> {
+      case parse_table(in, attrs, splitters) {
+        Some(#(table, in)) -> #(in, refs, Some(table), dict.new())
+        None -> {
+          let #(paragraph, in) =
+            parse_paragraph(in, attrs, splitters, div_close_size)
+          #(in, refs, Some(paragraph), dict.new())
         }
       }
     }
@@ -1665,6 +1699,18 @@ fn parse_code(in: String, count: Int) -> #(Inline, String) {
   }
 }
 
+fn parse_table_code(in: String, count: Int) -> #(String, String) {
+  case in {
+    "`" <> in -> parse_table_code(in, count + 1)
+    _ -> {
+      let #(content, in) = parse_code_content(in, count, "")
+      // return the raw content as we separately parse inline contents of a cell
+      let wrapper = string.repeat("`", count)
+      #(wrapper <> content <> wrapper, in)
+    }
+  }
+}
+
 fn parse_code_content(
   in: String,
   count: Int,
@@ -2015,6 +2061,207 @@ fn parse_paragraph(
   let #(inline, inline_in_remaining) =
     parse_inline(inline_in, splitters, "", [])
   #(Paragraph(attrs, inline), inline_in_remaining <> in)
+}
+
+fn parse_table(
+  in: String,
+  attrs: Dict(String, String),
+  splitters: Splitters,
+) -> Option(#(Container, String)) {
+  case take_table_rows(in, [], splitters) {
+    #([], _) -> None
+    #(rows, in) -> {
+      let rows = table_rows_to_ast(rows, splitters, [], None, [])
+      let #(caption, in) = detect_table_caption(in, splitters)
+      Some(#(Table(attributes: attrs, caption: caption, rows: rows), in))
+    }
+  }
+}
+
+fn take_table_rows(
+  in: String,
+  rows: List(List(String)),
+  splitters: Splitters,
+) -> #(List(List(String)), String) {
+  let #(line, rest) = slurp_to_line_end(in)
+  case table_row_cells(line, splitters) {
+    Some(cells) -> take_table_rows(rest, [cells, ..rows], splitters)
+    None -> #(list.reverse(rows), in)
+  }
+}
+
+fn table_row_cells(line: String, splitters: Splitters) -> Option(List(String)) {
+  case line, string.ends_with(line, "|") {
+    "|" <> content, True -> Some(split_table_row(content, "", [], splitters))
+    _, _ -> None
+  }
+}
+
+fn split_table_row(
+  in: String,
+  cell: String,
+  cells: List(String),
+  splitters: Splitters,
+) -> List(String) {
+  case splitter.split(splitters.table_splitter, in) {
+    #(before, "|", "") -> list.reverse([string.trim(cell <> before), ..cells])
+    #(before, "|", in) ->
+      split_table_row(in, "", [string.trim(cell <> before), ..cells], splitters)
+    #(before, "\\|", in) -> {
+      let cell = cell <> before <> "\\|"
+      split_table_row(in, cell, cells, splitters)
+    }
+    #(before, "`", in2) -> {
+      let #(code, in) = parse_table_code(in2, 1)
+      let cell = cell <> before <> code
+      split_table_row(in, cell, cells, splitters)
+    }
+    _ -> list.reverse([string.trim(cell <> in), ..cells])
+  }
+}
+
+fn is_separator_line(
+  cells: List(String),
+) -> Result(List(Option(TableAlignment)), Nil) {
+  list.try_map(cells, is_separator_cell)
+}
+
+fn is_separator_cell(cell: String) -> Result(Option(TableAlignment), Nil) {
+  let cell = string.trim(cell)
+  case cell {
+    ":-" <> rest -> is_separator_end(rest, True)
+    "-" <> rest -> is_separator_end(rest, False)
+    _ -> Error(Nil)
+  }
+}
+
+fn is_separator_end(
+  rest: String,
+  align_left: Bool,
+) -> Result(Option(TableAlignment), Nil) {
+  case rest, align_left {
+    "", True -> Ok(Some(AlignLeft))
+    "", False -> Ok(None)
+    ":", True -> Ok(Some(AlignCenter))
+    ":", False -> Ok(Some(AlignRight))
+    "-" <> rest, _ -> is_separator_end(rest, align_left)
+    _, _ -> Error(Nil)
+  }
+}
+
+fn table_rows_to_ast(
+  lines: List(List(String)),
+  splitters: Splitters,
+  alignments: List(Option(TableAlignment)),
+  pending: Option(List(String)),
+  rows: List(TableRow),
+) -> List(TableRow) {
+  case lines, pending {
+    [], None -> list.reverse(rows)
+    [], Some(cells) -> {
+      let row =
+        TableRow(False, table_cells_to_ast(cells, alignments, splitters))
+      list.reverse([row, ..rows])
+    }
+    [cells, ..lines], _ -> {
+      case is_separator_line(cells), pending {
+        Ok(alignments), None ->
+          table_rows_to_ast(lines, splitters, alignments, None, rows)
+        Ok(alignments), Some(previous_cells) -> {
+          let row =
+            TableRow(
+              True,
+              table_cells_to_ast(previous_cells, alignments, splitters),
+            )
+          table_rows_to_ast(lines, splitters, alignments, None, [row, ..rows])
+        }
+        Error(Nil), None ->
+          table_rows_to_ast(lines, splitters, alignments, Some(cells), rows)
+        Error(Nil), Some(previous_cells) -> {
+          let row =
+            TableRow(
+              False,
+              table_cells_to_ast(previous_cells, alignments, splitters),
+            )
+          table_rows_to_ast(lines, splitters, alignments, Some(cells), [
+            row,
+            ..rows
+          ])
+        }
+      }
+    }
+  }
+}
+
+fn detect_table_caption(
+  in: String,
+  splitters: Splitters,
+) -> #(Option(List(Inline)), String) {
+  case in {
+    // can optionally be one blank line before caption
+    "^" <> in | "\n^" <> in ->
+      take_table_caption(string.trim_start(in), [], splitters)
+    _ -> #(None, in)
+  }
+}
+
+fn take_table_caption(
+  in: String,
+  caption: List(Inline),
+  splitters: Splitters,
+) -> #(Option(List(Inline)), String) {
+  let #(line, in) = slurp_to_line_end(in)
+  case string.trim(line) {
+    "" -> #(Some(caption), in)
+    _ -> {
+      let #(new, _) = parse_inline(line, splitters, "", [])
+      let caption = list.append(caption, new)
+      case string.starts_with(in, " ") {
+        True ->
+          take_table_caption(
+            string.trim_start(in),
+            list.append(caption, [Text("\n")]),
+            splitters,
+          )
+        False -> #(Some(caption), in)
+      }
+    }
+  }
+}
+
+fn table_cells_to_ast(
+  cells: List(String),
+  alignments: List(Option(TableAlignment)),
+  splitters: Splitters,
+) -> List(TableCell) {
+  case cells, alignments {
+    [], _ -> []
+    [cell, ..cells], [] -> {
+      let #(content, _) = parse_inline(cell, splitters, "", [])
+      let content = drop_empty_text(content)
+      [
+        TableCell(alignment: None, content:),
+        ..table_cells_to_ast(cells, [], splitters)
+      ]
+    }
+    [cell, ..cells], [alignment, ..alignments] -> {
+      let #(content, _) = parse_inline(cell, splitters, "", [])
+      let content = drop_empty_text(content)
+      [
+        TableCell(alignment:, content:),
+        ..table_cells_to_ast(cells, alignments, splitters)
+      ]
+    }
+  }
+}
+
+fn drop_empty_text(content: List(Inline)) -> List(Inline) {
+  list.filter(content, fn(inline) {
+    case inline {
+      Text("") -> False
+      _ -> True
+    }
+  })
 }
 
 fn parse_list(
@@ -2602,6 +2849,14 @@ fn container_to_html(
 
     RawBlock(content) -> GeneratedHtml(..html, html: html.html <> content)
 
+    Table(attributes:, caption:, rows:) ->
+      html
+      |> open_tag("table", attributes)
+      |> append_to_html("\n")
+      |> table_caption_to_html(caption, refs)
+      |> table_rows_to_html(rows, refs)
+      |> close_tag("table")
+
     BulletList(layout:, style: _, items:) -> {
       html
       |> open_tag("ul", dict.new())
@@ -2642,6 +2897,84 @@ fn container_to_html(
       |> close_tag("div")
   }
   append_to_html(new_html, "\n")
+}
+
+fn table_rows_to_html(
+  html: GeneratedHtml,
+  rows: List(TableRow),
+  refs: RenderRefs,
+) -> GeneratedHtml {
+  case rows {
+    [] -> html
+    [TableRow(header:, cells:), ..rows] -> {
+      let cell_tag = case header {
+        True -> "th"
+        False -> "td"
+      }
+      html
+      |> table_row_to_html(cell_tag, cells, refs)
+      |> table_rows_to_html(rows, refs)
+    }
+  }
+}
+
+fn table_caption_to_html(
+  html: GeneratedHtml,
+  caption: Option(List(Inline)),
+  refs: RenderRefs,
+) -> GeneratedHtml {
+  case caption {
+    None -> html
+    Some(caption) ->
+      html
+      |> open_tag("caption", dict.new())
+      |> inlines_to_html(caption, refs, TrimLast)
+      |> close_tag("caption")
+      |> append_to_html("\n")
+  }
+}
+
+fn table_row_to_html(
+  html: GeneratedHtml,
+  cell_tag: String,
+  cells: List(TableCell),
+  refs: RenderRefs,
+) -> GeneratedHtml {
+  html
+  |> open_tag("tr", dict.new())
+  |> append_to_html("\n")
+  |> table_cells_to_html(cell_tag, cells, refs)
+  |> close_tag("tr")
+  |> append_to_html("\n")
+}
+
+fn table_cells_to_html(
+  html: GeneratedHtml,
+  cell_tag: String,
+  cells: List(TableCell),
+  refs: RenderRefs,
+) -> GeneratedHtml {
+  case cells {
+    [] -> html
+    [TableCell(alignment:, content:), ..cells] ->
+      html
+      |> open_tag(cell_tag, table_cell_attributes(alignment))
+      |> inlines_to_html(content, refs, TrimLast)
+      |> close_tag(cell_tag)
+      |> append_to_html("\n")
+      |> table_cells_to_html(cell_tag, cells, refs)
+  }
+}
+
+fn table_cell_attributes(
+  alignment: Option(TableAlignment),
+) -> Dict(String, String) {
+  case alignment {
+    None -> dict.new()
+    Some(AlignLeft) -> dict.from_list([#("style", "text-align: left;")])
+    Some(AlignCenter) -> dict.from_list([#("style", "text-align: center;")])
+    Some(AlignRight) -> dict.from_list([#("style", "text-align: right;")])
+  }
 }
 
 fn create_footnotes(
@@ -3076,6 +3409,14 @@ pub fn inner_text(container: Container) -> String {
 
     Codeblock(content:, ..) -> content
 
+    Table(rows:, ..) ->
+      rows
+      |> list.flat_map(fn(row) {
+        let TableRow(cells:, ..) = row
+        list.map(cells, table_cell_text)
+      })
+      |> string.join("\n")
+
     Paragraph(content:, ..) | Heading(content:, ..) ->
       list.fold(content, "", inline_text)
 
@@ -3085,6 +3426,11 @@ pub fn inner_text(container: Container) -> String {
     BulletList(items:, ..) | OrderedList(items:, ..) ->
       items |> list.flat_map(list.map(_, inner_text)) |> string.join("\n\n")
   }
+}
+
+fn table_cell_text(cell: TableCell) -> String {
+  let TableCell(content:, ..) = cell
+  list.fold(content, "", inline_text)
 }
 
 fn inline_text(accumulator: String, item: Inline) -> String {
