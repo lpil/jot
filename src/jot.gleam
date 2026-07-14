@@ -264,6 +264,13 @@ fn drop_spaces(in: String) -> String {
   }
 }
 
+fn drop_spaces_tabs(in: String) -> String {
+  case in {
+    " " <> rest | "\t" <> rest -> drop_spaces_tabs(rest)
+    other -> other
+  }
+}
+
 fn count_drop_spaces(in: String, count: Int) -> #(String, Int) {
   case in {
     " " <> rest -> count_drop_spaces(rest, count + 1)
@@ -1295,7 +1302,23 @@ fn parse_inline(
           parse_inline(in, splitters, "", [Linebreak, Text(text), ..acc])
 
         " " <> in ->
-          parse_inline(in, splitters, "", [NonBreakingSpace, Text(text), ..acc])
+          case drop_spaces_tabs(in) {
+            "\n" <> in ->
+              parse_inline(in, splitters, "", [Linebreak, Text(text), ..acc])
+            _ ->
+              parse_inline(in, splitters, "", [
+                NonBreakingSpace,
+                Text(text),
+                ..acc
+              ])
+          }
+
+        "\t" <> in2 ->
+          case drop_spaces_tabs(in2) {
+            "\n" <> in ->
+              parse_inline(in, splitters, "", [Linebreak, Text(text), ..acc])
+            _ -> parse_inline(in, splitters, text <> "\\", acc)
+          }
 
         _other -> parse_inline(in, splitters, text <> "\\", acc)
       }

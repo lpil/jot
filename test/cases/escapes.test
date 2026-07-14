@@ -39,3 +39,14 @@ on multiple lines.
 <p>The <code>code</code> is<br>
 on multiple lines.</p>
 ```
+
+There can be spaces and tabs between the backslash and the newline:
+
+```
+ab\	  
+c
+.
+<p>ab<br>
+c</p>
+```
+

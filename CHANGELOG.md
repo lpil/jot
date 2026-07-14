@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fixed bug where spaces or tabs between as `\` and newline would not produce a
+  linebreak
+
 ## v12.0.1 - 2026-06-08
 
 - Fixed a bug where the parse could diverge when parsing multiline blockquotes
