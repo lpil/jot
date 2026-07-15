@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## v12.1.0 - 2026-07-15
 
-- Add support for spaces and tabs between a backlash and newline creating a linebreak
+- Add support for spaces and tabs between a backlash and newline creating a
+  linebreak.
 
 ## v12.0.1 - 2026-06-08
 
