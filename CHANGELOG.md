@@ -2,8 +2,7 @@
 
 ## Unreleased
 
-- Fixed bug where spaces or tabs between as `\` and newline would not produce a
-  linebreak
+- Add support for spaces and tabs between a backlash and newline creating a linebreak
 
 ## v12.0.1 - 2026-06-08
 
