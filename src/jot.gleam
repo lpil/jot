@@ -2352,10 +2352,12 @@ fn parse_lower_list(
     "y" <> in -> parse_lower_list(in, num * 26 + 25, paren)
     "z" <> in -> parse_lower_list(in, num * 26 + 26, paren)
 
-    ". " <> rest | ".\n" <> rest if !paren ->
+    // An alphabetic ordinal is a single letter (a-z), i.e. 1-26. A longer run
+    // of letters (num > 26) is an ordinary word, not a list marker (see #51).
+    ". " <> rest | ".\n" <> rest if !paren && num <= 26 ->
       Some(#(FullStop, LowerAlphaOrdinal, num, rest))
 
-    ") " <> rest | ")\n" <> rest -> {
+    ") " <> rest | ")\n" <> rest if num <= 26 -> {
       let punctuation = case paren {
         True -> DoubleParen
         False -> SingleParen
@@ -2400,10 +2402,12 @@ fn parse_upper_list(
     "Y" <> in -> parse_upper_list(in, num * 26 + 25, paren)
     "Z" <> in -> parse_upper_list(in, num * 26 + 26, paren)
 
-    ". " <> rest | ".\n" <> rest if !paren ->
+    // An alphabetic ordinal is a single letter (A-Z), i.e. 1-26. A longer run
+    // of letters (num > 26) is an ordinary word, not a list marker (see #51).
+    ". " <> rest | ".\n" <> rest if !paren && num <= 26 ->
       Some(#(FullStop, UpperAlphaOrdinal, num, rest))
 
-    ") " <> rest | ")\n" <> rest -> {
+    ") " <> rest | ")\n" <> rest if num <= 26 -> {
       let punctuation = case paren {
         True -> DoubleParen
         False -> SingleParen
