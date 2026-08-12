@@ -36,7 +36,7 @@ Simplest table:
 | a | b |
 
 ^ With a _caption_
-and another line.
+  and another line.
 .
 <table>
 <caption>With a <em>caption</em>
