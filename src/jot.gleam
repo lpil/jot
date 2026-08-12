@@ -792,6 +792,7 @@ fn parse_codeblock_start(
 
     "\n" <> in if count >= 3 -> Some(#(None, count, in))
 
+    "" if count >= 3 -> Some(#(None, count, ""))
     "" -> None
     _non_empty if count >= 3 -> {
       let in = drop_spaces(in)
@@ -834,6 +835,7 @@ fn slurp_verbatim_line(
     #(before, "\n", in) -> #(acc <> before <> "\n", in)
     #("", " ", in) if indentation > 0 ->
       slurp_verbatim_line(in, indentation - 1, acc, splitters)
+    #(before, "", "") -> #(acc <> before, "")
     #(before, split, in) ->
       slurp_verbatim_line(in, indentation, acc <> before <> split, splitters)
   }
@@ -869,8 +871,16 @@ fn parse_codeblock_language(
     // A language specifier cannot contain a backtick
     #(_, "`", _) -> None
     #(a, "\n", _) if a == "" && language == "" -> Some(#(None, in))
-    #(a, "\n", in) -> Some(#(Some(language <> a), in))
+    #(a, "\n", in) -> Some(#(codeblock_language(language <> a), in))
+    #(a, "", "") -> Some(#(codeblock_language(language <> a), ""))
     _ -> Some(#(None, in))
+  }
+}
+
+fn codeblock_language(language: String) -> Option(String) {
+  case string.trim_end(language) {
+    "" -> None
+    language -> Some(language)
   }
 }
 
