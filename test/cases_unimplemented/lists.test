@@ -54,20 +54,6 @@ b
 </ol>
 ```
 
-```
-i. a
-j. b
-.
-<ol start="9" type="a">
-<li>
-a
-</li>
-<li>
-b
-</li>
-</ol>
-```
-
 When ambiguous, prioritize roman numerals.
 
 ```
@@ -102,12 +88,4 @@ b
 d
 </li>
 </ol>
-```
-
-```
-The civil war ended in
-1865. And this should not start a list.
-.
-<p>The civil war ended in
-1865. And this should not start a list.</p>
 ```

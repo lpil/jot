@@ -1,5 +1,10 @@
 # Changelog
 
+## v12.1.1 - 2026-08-12
+
+- Fixed a bug where words could be incorrectly parsed as numbered lists
+  markers.
+
 ## v12.1.0 - 2026-07-15
 
 - Add support for spaces and tabs between a backlash and newline creating a
