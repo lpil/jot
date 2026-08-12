@@ -106,3 +106,56 @@ hey hey what up
       ),
     ]
 }
+
+pub fn unterminated_codeblock_at_end_of_input_test() {
+  let document = jot.parse("```sh")
+
+  assert document.content
+    == [
+      jot.Codeblock(
+        attributes: dict.new(),
+        language: option.Some("sh"),
+        content: "",
+      ),
+    ]
+}
+
+pub fn bare_codeblock_fence_at_end_of_input_test() {
+  let document = jot.parse("```")
+
+  assert document.content
+    == [
+      jot.Codeblock(attributes: dict.new(), language: option.None, content: ""),
+    ]
+}
+
+pub fn unterminated_codeblock_language_trims_spaces_test() {
+  let with_language = jot.parse("```sh   ")
+  let without_language = jot.parse("```   ")
+
+  assert with_language.content
+    == [
+      jot.Codeblock(
+        attributes: dict.new(),
+        language: option.Some("sh"),
+        content: "",
+      ),
+    ]
+  assert without_language.content
+    == [
+      jot.Codeblock(attributes: dict.new(), language: option.None, content: ""),
+    ]
+}
+
+pub fn unterminated_codeblock_content_at_end_of_input_test() {
+  let document = jot.parse("```\nsh")
+
+  assert document.content
+    == [
+      jot.Codeblock(
+        attributes: dict.new(),
+        language: option.None,
+        content: "sh",
+      ),
+    ]
+}
