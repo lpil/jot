@@ -857,7 +857,8 @@ fn parse_codeblock_end(
     "\n" <> in if count == 0 -> Some(in)
     _ if count == 0 -> Some(in)
 
-    // if the codeblock is indented (ex: in a footnote block), we need to accept an indented end marker
+    // if the codeblock is indented (ex: in a footnote block), we need to
+    // accept an indented end marker
     " " <> in -> parse_codeblock_end(in, delim, count)
 
     _ ->
@@ -1353,21 +1354,31 @@ fn parse_inline(
       }
     }
 
-    #(a, "[^", rest) -> {
-      let text = text <> a
+    #(before, "[^", rest) -> {
+      let text = text <> before
       case parse_footnote(rest, "^") {
         None -> parse_inline(rest, splitters, text <> "[^", acc)
-        // if this is actually a definition instead of a reference, return early
+        // If this is actually a definition instead of a reference, return early
         // This applies in situations such as the following:
+        //
         // ```
         // [^footnote]: very long footnote[^another-footnote]
         // [^another-footnote]: bla bla[^another-footnote]
         // ```
-        Some(#(_footnote, ":" <> _)) if text != "" -> #(
-          list.reverse([Text(text), ..acc]),
-          in,
-        )
-        Some(#(_footnote, ":" <> _)) -> #(list.reverse(acc), in)
+        //
+        // Note it can only happen at the start of a line, so we check that
+        // `before` is empty.
+        //
+        Some(#(_footnote, ":" <> _)) if before == "" -> {
+          let acc = case text {
+            "" -> acc
+            _ -> [Text(text), ..acc]
+          }
+          #(list.reverse(acc), in)
+        }
+        Some(#(_footnote, ":" <> _)) if rest != "" && before == "" -> {
+          #(list.reverse(acc), in)
+        }
         Some(#(footnote, in)) ->
           parse_inline(in, splitters, "", [footnote, Text(text), ..acc])
       }

@@ -4,7 +4,6 @@ import gleam/io
 import gleam/list
 import gleam/option
 import gleam/result
-import gleam/string
 import gleam_community/ansi
 import gleave
 import gleeunit
@@ -40,9 +39,9 @@ fn run_testcase(testcase: support.Example) -> Result(Nil, Nil) {
     False -> {
       io.print_error(ansi.red("F"))
       io.print_error(ansi.red("\n\nTest failed: " <> testcase.file))
-      io.print_error(ansi.gray("\nInput:\n") <> testcase.djot)
-      io.print_error(ansi.gray("\nWant:\n") <> string.inspect(testcase.html))
-      io.print_error(ansi.gray("\nGot:\n") <> string.inspect(result))
+      io.print_error(ansi.blue("\nInput:\n") <> testcase.djot)
+      io.print_error(ansi.blue("\nWant:\n") <> testcase.html)
+      io.print_error(ansi.blue("\nGot:\n") <> result)
       io.print_error("\n")
       // panic
       Error(Nil)

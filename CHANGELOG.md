@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## v12.1.2 - 2026-09-29
 
 - Fixed a bug where unterminated code blocks would cause the parser to diverge.
+- Fixed a bug where references to footnotes at the start of lines without any
+  content could cause the parser to diverge.
 
 ## v12.1.1 - 2026-08-12
 
