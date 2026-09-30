@@ -36,7 +36,7 @@ Simplest table:
 | a | b |
 
 ^ With a _caption_
-and another line.
+  and another line.
 .
 <table>
 <caption>With a <em>caption</em>
@@ -120,6 +120,45 @@ determines the alignment for following cells, until the next header.
 <tr>
 <td>just two | <code>|</code></td>
 <td>cells in this table</td>
+</tr>
+</table>
+```
+
+Multiple-backtick delimiters keep pipes and shorter backtick runs inside code:
+
+```
+| ``a`|b`` | next |
+.
+<table>
+<tr>
+<td><code>a`|b</code></td>
+<td>next</td>
+</tr>
+</table>
+```
+
+Padding around backticks is dropped so snippets can start and end with backticks:
+
+```
+| `` `a|b` `` | next |
+.
+<table>
+<tr>
+<td><code>`a|b`</code></td>
+<td>next</td>
+</tr>
+</table>
+```
+
+Spaces that do not pad backticks remain part of the code:
+
+```
+| `` a|b `` | next |
+.
+<table>
+<tr>
+<td><code> a|b </code></td>
+<td>next</td>
 </tr>
 </table>
 ```
